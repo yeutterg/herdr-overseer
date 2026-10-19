@@ -51,7 +51,7 @@ References to the same repo show as `#N`, and references to another repo show as
 
 ## How it works
 
-There's no daemon. Herdr runs `bin/refresh.js` on startup and on agent status, tab and pane events, and `bin/title.js` on focus changes. Overlapping runs are serialised per session. The plugin reports [custom sidebar tokens](https://herdr.dev/docs/configuration) (`$gap`, `$group`, `$gsort`, `$branch`, `$pr`, `$pr_state`, `$issues`, `$tab1…$tab14`), sets an agent view that sorts by `$gsort`,, and the **Configure** action writes a marked block into `config.toml` that lays those tokens out.
+There's no daemon. Herdr runs `bin/refresh.js` on startup and on agent status, tab and pane events, and `bin/title.js` on focus changes. Overlapping runs are serialised per session. The plugin reports [custom sidebar tokens](https://herdr.dev/docs/configuration) (`$gap`, `$group`, `$gsort`, `$branch`, `$pr`, `$pr_state`, `$issues`, `$tab1…$tab14`), sets an agent view that sorts by `$gsort`, and the **Configure** action writes a marked block into `config.toml` that lays those tokens out.
 
 ## Requirements
 
