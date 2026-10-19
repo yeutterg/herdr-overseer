@@ -1,0 +1,9 @@
+{
+  "name": "herdr-glance",
+  "version": "0.1.0",
+  "description": "Herdr plugin: status-first sidebar with tab titles, activity, branches, PRs/issues, nested tabs, and the session name in the window title.",
+  "license": "MIT",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": { "test": "node --test test/" }
+}

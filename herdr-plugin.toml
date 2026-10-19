@@ -1,0 +1,71 @@
+id = "yeutterg.herdr-glance"
+name = "Herdr Glance"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Status-first sidebar: tab title, live activity and the PRs/issues each agent is working on, tabs nested under their space, and the session name in the window title."
+platforms = ["linux", "macos"]
+
+# No daemon. Herdr has no supervised long-running plugin process, so every
+# refresh is a short-lived command fired by a startup or event hook. The live
+# description line is Herdr's own `terminal_title_stripped` token, which
+# repaints without us; the plugin only adds what Herdr cannot know (PRs,
+# issues, the per-space tab list) and the outer window title.
+
+[[startup]]
+command = ["node", "bin/refresh.js"]
+
+# Anything that changes an agent's state or the set of tabs repaints tokens.
+[[events]]
+on = "pane.agent_status_changed"
+command = ["node", "bin/refresh.js"]
+
+[[events]]
+on = "pane.agent_detected"
+command = ["node", "bin/refresh.js"]
+
+[[events]]
+on = "tab.created"
+command = ["node", "bin/refresh.js"]
+
+[[events]]
+on = "tab.closed"
+command = ["node", "bin/refresh.js"]
+
+[[events]]
+on = "tab.renamed"
+command = ["node", "bin/refresh.js"]
+
+[[events]]
+on = "pane.closed"
+command = ["node", "bin/refresh.js"]
+
+# Focus changes only need the window title, which must be fast.
+[[events]]
+on = "workspace.focused"
+command = ["node", "bin/title.js"]
+
+[[events]]
+on = "tab.focused"
+command = ["node", "bin/title.js"]
+
+[[events]]
+on = "workspace.renamed"
+command = ["node", "bin/title.js"]
+
+[[actions]]
+id = "configure"
+title = "Configure: install the sidebar layout"
+description = "Write (or repair) the managed sidebar block in Herdr's config.toml and reload every running session."
+command = ["node", "bin/configure.js", "--apply"]
+
+[[actions]]
+id = "unconfigure"
+title = "Configure: remove the sidebar layout"
+description = "Remove the managed block, clear this plugin's tokens and window title, and reload. Do this before uninstalling."
+command = ["node", "bin/configure.js", "--remove"]
+
+[[actions]]
+id = "refresh"
+title = "Refresh now"
+description = "Re-read every pane, bypass the PR cache and repaint."
+command = ["node", "bin/refresh.js", "--force"]
