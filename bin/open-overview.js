@@ -2,8 +2,9 @@
 'use strict';
 
 // Opens the agent overview (bin/overview.js) as a tab named "overview" in a
-// space, scoped to that space through OVERSEER_WORKSPACE_ID. A space that
-// already has one gets it focused instead of a second copy.
+// space, scoped to that space through OVERSEER_WORKSPACE_ID. A new one is
+// placed first (leftmost); one that already exists is only focused, never
+// moved, so wherever you dragged it is where it stays.
 //
 //   (no args)  the space you are in
 //   --all      every space in this session, without moving you
@@ -31,7 +32,10 @@ async function open(snap, workspaceId, focus) {
     focus,
   });
   const tabId = opened.plugin_pane?.pane?.tab_id;
-  if (tabId) await call('tab.rename', { tab_id: tabId, label: TAB_LABEL });
+  if (tabId) {
+    await call('tab.rename', { tab_id: tabId, label: TAB_LABEL });
+    await call('tab.move', { tab_id: tabId, insert_index: 0 });
+  }
   return 'opened';
 }
 
