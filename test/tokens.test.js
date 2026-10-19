@@ -23,8 +23,8 @@ test('workspace tokens nest tabs with status glyphs and clear unused slots', () 
     { tab_id: 'w2:t1', workspace_id: 'w2', number: 1, label: 'other', agent_status: 'idle' },
   ];
   const t = workspaceTokens(ws, tabs, []);
-  assert.equal(t.tab1, '├ ● api');
-  assert.equal(t.tab2, '└ ▲ web');
+  assert.equal(t.tab1, '├ ◐ api');
+  assert.equal(t.tab2, '└ ● web');
   assert.equal(t.tab3, null);
   assert.equal(Object.keys(t).length, 14);
 });
@@ -113,11 +113,34 @@ test('agents nest under spaces, both ordered by priority', () => {
   assert.deepEqual(order, ['w2:p2', 'w2:p1', 'w1:p2', 'w1:p1']);
   assert.equal(g.get('w2:p2').group, 'web');
   assert.equal(g.get('w2:p2').gap, null); // no spacer above the first group
-  assert.equal(g.get('w2:p1').group, '​'); // blank first line keeps it indented
+  assert.equal(g.get('w2:p1').group, null); // no blank line between agents of a space
+  assert.equal(g.get('w2:p1').head, '\u200b  ○ claude'); // indents itself instead
+  assert.equal(g.get('w2:p2').head, '● claude'); // under the header, Herdr indents it
   assert.equal(g.get('w1:p2').group, 'api');
-  assert.equal(g.get('w1:p2').gap, '​');
+  assert.equal(g.get('w1:p2').gap, '\u200b');
   assert.equal(g.has('w1:p3'), false);
 
   const flat = agentGroupTokens(snap, { nest: false });
-  assert.deepEqual(flat.get('w1:p1'), { gsort: null, gap: null, group: null, space: 'api' });
+  assert.deepEqual(flat.get('w1:p1'), { gsort: null, gap: null, group: null, head: '○ claude', space: 'api' });
+});
+
+test('wrap breaks on words, splits long words, ellipsises overflow', () => {
+  const { wrap } = require('../lib/live');
+  assert.deepEqual(wrap('Investigate inconsistent lamp health reports', 16, 4), ['Investigate', 'inconsistent', 'lamp health', 'reports']);
+  assert.deepEqual(wrap('abcdefghij', 4, 4), ['abcd', 'efgh', 'ij']);
+  assert.deepEqual(wrap('one two three four five', 5, 2), ['one', 'two…']);
+  assert.deepEqual(wrap('', 10, 4), []);
+});
+
+test('only the selected agent gets wrapped activity and details', () => {
+  const { liveTokens } = require('../lib/live');
+  const pane = { terminal_title_stripped: 'Investigate inconsistent lamp health' };
+  const details = { branch: '⎇ main', pr: 'PR #4', pr_state: null, issues: null };
+  const off = liveTokens(pane, { selected: false, details, width: 16, detailsMode: 'selected' });
+  assert.deepEqual(off, { desc1: 'Investigate inconsistent lamp health', desc2: null, desc3: null, desc4: null, branch: null, pr: null, pr_state: null, issues: null });
+  const on = liveTokens(pane, { selected: true, details, width: 16, detailsMode: 'selected' });
+  assert.equal(on.desc1, 'Investigate');
+  assert.equal(on.desc3, 'lamp health');
+  assert.equal(on.branch, '⎇ main');
+  assert.equal(liveTokens(pane, { selected: false, details, width: 16, detailsMode: 'always' }).pr, 'PR #4');
 });

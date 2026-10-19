@@ -7,9 +7,8 @@ platforms = ["linux", "macos"]
 
 # No daemon. Herdr has no supervised long-running plugin process, so every
 # refresh is a short-lived command fired by a startup or event hook. The live
-# description line is Herdr's own `terminal_title_stripped` token, which
-# repaints without us; the plugin only adds what Herdr cannot know (PRs,
-# issues, the per-space tab list) and the outer window title.
+# activity lines are kept current by bin/live.js, run from a tab-bar status
+# command that Configure installs (Herdr re-runs those on an interval).
 
 [[startup]]
 command = ["node", "bin/refresh.js"]
@@ -39,18 +38,24 @@ command = ["node", "bin/refresh.js"]
 on = "pane.closed"
 command = ["node", "bin/refresh.js"]
 
-# Focus changes only need the window title, which must be fast.
+# Selection changes re-render the selected agent (wrapped activity, branch,
+# PRs) and the window title. Kept separate from refresh.js so a click
+# responds immediately.
 [[events]]
 on = "workspace.focused"
-command = ["node", "bin/title.js"]
+command = ["node", "bin/live.js"]
 
 [[events]]
 on = "tab.focused"
-command = ["node", "bin/title.js"]
+command = ["node", "bin/live.js"]
+
+[[events]]
+on = "pane.focused"
+command = ["node", "bin/live.js"]
 
 [[events]]
 on = "workspace.renamed"
-command = ["node", "bin/title.js"]
+command = ["node", "bin/live.js"]
 
 [[actions]]
 id = "configure"

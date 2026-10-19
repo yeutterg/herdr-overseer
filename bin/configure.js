@@ -11,10 +11,23 @@ const path = require('node:path');
 
 const { call, snapshot } = require('../lib/ipc');
 const { SOURCE, configDir } = require('../lib/session');
-const { applyBlock, stripBlock, block } = require('../lib/layout');
+const { applyBlock, stripBlock } = require('../lib/layout');
 const { MAX_TABS } = require('../lib/tokens');
 
 const CONFIG = path.join(configDir(), 'config.toml');
+
+// The `node` on PATH (e.g. /opt/homebrew/bin/node) rather than
+// process.execPath, which is a versioned path that breaks on upgrade.
+function nodePath() {
+  for (const dir of (process.env.PATH ?? '').split(path.delimiter)) {
+    const candidate = path.join(dir, 'node');
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      return candidate;
+    } catch {}
+  }
+  return process.execPath;
+}
 
 // Config is shared by every session, so every running server reloads it.
 function sessionSockets() {
@@ -32,7 +45,7 @@ async function eachSession(fn) {
 
 async function clearTokens(sock) {
   const snap = await snapshot(sock);
-  const paneTokens = { gap: null, group: null, gsort: null, space: null, branch: null, pr: null, pr_state: null, issues: null };
+  const paneTokens = { desc1: null, desc2: null, desc3: null, desc4: null, gap: null, group: null, gsort: null, head: null, space: null, branch: null, pr: null, pr_state: null, issues: null };
   const wsTokens = Object.fromEntries(Array.from({ length: MAX_TABS }, (_, i) => [`tab${i + 1}`, null]));
   await Promise.allSettled([
     ...snap.panes.map((p) => call('pane.report_metadata', { pane_id: p.pane_id, source: SOURCE, tokens: paneTokens }, sock)),
@@ -53,7 +66,7 @@ function backup() {
 async function main() {
   const mode = process.argv[2] ?? '--apply';
   if (mode === '--print') {
-    console.log(block(fs.readFileSync(CONFIG, 'utf8')));
+    console.log(applyBlock(fs.readFileSync(CONFIG, 'utf8'), '<timer command>').text);
     return;
   }
   if (mode === '--refresh') {
@@ -61,7 +74,17 @@ async function main() {
     return;
   }
   const before = fs.readFileSync(CONFIG, 'utf8');
-  const after = mode === '--remove' ? stripBlock(before) : applyBlock(before);
+  // Absolute paths: tab-bar commands run in a plain shell, outside the plugin.
+  const timerCommand = `"${nodePath()}" "${path.join(__dirname, 'live.js')}" --tick`;
+  let after;
+  if (mode === '--remove') after = stripBlock(before);
+  else {
+    const applied = applyBlock(before, timerCommand);
+    after = applied.text;
+    if (!applied.timer) {
+      console.log('config.toml already sets ui.tab_bar_right, so the refresh timer was not installed; activity lines update on agent events and selection changes only.');
+    }
+  }
   if (after !== before) {
     const copy = backup();
     fs.writeFileSync(CONFIG, after);

@@ -14,7 +14,7 @@ const { call, snapshot } = require('../lib/ipc');
 const { SOURCE, stateFile, readJson, writeJson, userConfig } = require('../lib/session');
 const { gitInfo, isTrunk, prForBranch, issueFromBranch, scanRefs } = require('../lib/github');
 const { paneTokens, workspaceTokens, agentGroupTokens } = require('../lib/tokens');
-const { applyTitle } = require('../lib/title');
+const { updateLive } = require('../lib/live');
 
 const AGENT_SORT = [{ field: { token: 'gsort' }, order: 'asc' }];
 const PR_TTL_MS = 60_000;
@@ -74,6 +74,7 @@ async function refresh(state, { repaint }) {
   const nest = userConfig().nest_agents !== false;
   const groups = agentGroupTokens(snap, { nest });
   const liveKeys = new Set();
+  const details = {};
 
   const paneJobs = agentPanes.map(async (pane) => {
     // Keyed by the agent's own session id so history survives a pane move.
@@ -93,15 +94,15 @@ async function refresh(state, { repaint }) {
     const seen = mergeSeen(state.seen[key] ?? [], scanRefs(text));
     state.seen[key] = seen;
 
-    const tokens = {
-      ...groups.get(pane.pane_id),
-      ...paneTokens({
-        git: info,
-        pr: branchPr?.none ? null : branchPr,
-        seen,
-        branchIssue: info && !isTrunk(info) ? issueFromBranch(info.branch) : null,
-      }),
-    };
+    // Branch, PR and issue lines are shown by lib/live.js, only for the
+    // selected agent, so they are cached rather than reported here.
+    details[pane.pane_id] = paneTokens({
+      git: info,
+      pr: branchPr?.none ? null : branchPr,
+      seen,
+      branchIssue: info && !isTrunk(info) ? issueFromBranch(info.branch) : null,
+    });
+    const tokens = groups.get(pane.pane_id);
     await report(state, repaint, `pane:${pane.pane_id}`, tokens, () =>
       call('pane.report_metadata', { pane_id: pane.pane_id, source: SOURCE, tokens }),
     );
@@ -124,8 +125,13 @@ async function refresh(state, { repaint }) {
       ? [call('agent.view.set', { source: SOURCE, label: 'priority', sort: AGENT_SORT })]
       : [call('agent.view.clear', { source: SOURCE })];
 
-  const results = await Promise.allSettled([...paneJobs, ...wsJobs, ...view, applyTitle(snap)]);
+  const results = await Promise.allSettled([...paneJobs, ...wsJobs, ...view]);
   for (const r of results) if (r.status === 'rejected') console.error(`herdr-glance: ${r.reason?.message ?? r.reason}`);
+
+  writeJson(stateFile('details'), details);
+  // A restarted server lost every token, so forget what live.js last sent.
+  if (repaint) writeJson(stateFile('live'), {});
+  await updateLive(snap, { forceTitle: true });
 
   for (const key of Object.keys(state.seen)) if (!liveKeys.has(key)) delete state.seen[key];
   const liveIds = new Set([
