@@ -45,10 +45,19 @@ async function eachSession(fn) {
 
 async function clearTokens(sock) {
   const snap = await snapshot(sock);
-  const paneTokens = { desc1: null, desc2: null, desc3: null, desc4: null, gap: null, tail: null, group: null, gsort: null, head: null, space: null, branch: null, pr: null, pr_state: null, issues: null };
+  // Every pane token any version has reported.
+  const names = ['gsort', 'tail', 'group', 'head', 'space', 'desc1', 'desc2', 'desc3', 'desc4'];
+  names.push('branch1', 'branch2', 'pr1', 'pr2', 'pr3', 'iss1', 'iss2', 'iss3');
+  names.push('gap', 'branch', 'pr', 'pr_state', 'issues');
+  const paneTokens = Object.fromEntries(names.map((n) => [n, null]));
   const wsTokens = Object.fromEntries(Array.from({ length: MAX_TABS }, (_, i) => [`tab${i + 1}`, null]));
   await Promise.allSettled([
-    ...snap.panes.map((p) => call('pane.report_metadata', { pane_id: p.pane_id, source: SOURCE, tokens: paneTokens }, sock)),
+    ...snap.panes.flatMap((p) => {
+      const entries = Object.entries(paneTokens); // at most 16 tokens per report
+      return [entries.slice(0, 16), entries.slice(16)]
+        .filter((part) => part.length)
+        .map((part) => call('pane.report_metadata', { pane_id: p.pane_id, source: SOURCE, tokens: Object.fromEntries(part) }, sock));
+    }),
     ...snap.workspaces.map((w) =>
       call('workspace.report_metadata', { workspace_id: w.workspace_id, source: SOURCE, tokens: wsTokens }, sock),
     ),

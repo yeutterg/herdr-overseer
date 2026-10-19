@@ -2,7 +2,7 @@
 
 A [Herdr](https://herdr.dev) plugin that makes the sidebar answer "what is each agent doing, and what has it produced?" without clicking around.
 
-**Agents panel**: agents are nested under their space, with one coloured status icon each. Unselected agents take two lines: status and tab name, then one line of live activity. Select an agent (click it, or focus its pane) and it expands: the activity wraps over up to four lines, and its branch and PRs/issues appear.
+**Agents panel**: agents are nested under their space, with one coloured status icon each. Unselected agents take two lines: status and tab name, then one line of live activity. Select an agent (click it, or focus its pane) and it expands: the activity wraps over up to four lines, then its branch, its PRs and its issues each appear on their own lines, wrapped too. Lines with nothing to show are left out, so an agent with no known PRs or issues ends at its branch.
 
 ```
 restful
@@ -12,7 +12,8 @@ restful
   Fixing the token refresh race in
   the auth middleware
   ⎇ fix/138-token-race
-  PR #142 · Issue #138
+  PR #142
+  Issue #138
   ○ docs
   Idle
 ```

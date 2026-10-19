@@ -136,14 +136,23 @@ test('wrap breaks on words, splits long words, ellipsises overflow', () => {
 test('only the selected agent gets wrapped activity and details', () => {
   const { liveTokens } = require('../lib/live');
   const pane = { terminal_title_stripped: 'Investigate inconsistent lamp health' };
-  const details = { branch: '⎇ main', pr: 'PR #4', pr_state: null, issues: null };
+  const details = { branch: '⎇ main', pr: 'PR #4 restful-cloud#606', pr_state: 'merged', issues: 'Issue #12' };
   const off = liveTokens(pane, { selected: false, details, width: 16, detailsMode: 'selected' });
-  assert.deepEqual(off, { desc1: 'Investigate inconsistent lamp health', desc2: null, desc3: null, desc4: null, branch: null, pr: null, pr_state: null, issues: null });
+  assert.equal(off.desc1, 'Investigate inconsistent lamp health');
+  assert.equal(off.desc2, null);
+  for (const k of ['branch1', 'pr1', 'iss1', 'branch', 'pr', 'issues']) assert.equal(off[k], null);
   const on = liveTokens(pane, { selected: true, details, width: 16, detailsMode: 'selected' });
   assert.equal(on.desc1, 'Investigate');
   assert.equal(on.desc3, 'lamp health');
-  assert.equal(on.branch, '⎇ main');
-  assert.equal(liveTokens(pane, { selected: false, details, width: 16, detailsMode: 'always' }).pr, 'PR #4');
+  assert.equal(on.branch1, '⎇ main');
+  const wide = liveTokens(pane, { selected: true, details, width: 20, detailsMode: 'selected' });
+  assert.deepEqual([wide.pr1, wide.pr2, wide.pr3], ['PR #4', 'restful-cloud#606', '(merged)']);
+  // Nothing known, no line: an empty token hides its row.
+  const bare = liveTokens(pane, { selected: true, details: { branch: '⎇ main' }, width: 20, detailsMode: 'selected' });
+  for (const k of ['pr1', 'pr2', 'pr3', 'iss1', 'iss2', 'iss3']) assert.equal(bare[k], null);
+  assert.equal(on.iss1, 'Issue #12');
+  const always = liveTokens(pane, { selected: false, details, width: 16, detailsMode: 'always' });
+  assert.equal(always.pr1, 'PR #4 restful-cloud#606 (merged)');
 });
 
 test("ranking matches Herdr's tab_attention_priority, newest change first", () => {
@@ -159,4 +168,11 @@ test("ranking matches Herdr's tab_attention_priority, newest change first", () =
   const order = [...g.keys()].sort((a, b) => (g.get(a).gsort < g.get(b).gsort ? -1 : 1));
   // blocked, done, working (seq 99 before seq 1), idle, unknown
   assert.deepEqual(order, ['p4', 'p2', 'p5', 'p1', 'p0', 'p3']);
+});
+
+test('branch names wrap after path separators and keep the icon', () => {
+  const { wrapPath } = require('../lib/live');
+  assert.deepEqual(wrapPath('⎇ feature/brightstart-contracts', 23, 2), ['⎇ feature/brightstart-', 'contracts']);
+  assert.deepEqual(wrapPath('⎇ main', 23, 2), ['⎇ main']);
+  assert.deepEqual(wrapPath('abcdefghijkl', 4, 2), ['abcd', 'efg…']);
 });
