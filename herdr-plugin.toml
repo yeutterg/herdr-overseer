@@ -83,3 +83,23 @@ id = "refresh"
 title = "Refresh now"
 description = "Re-read every pane in every running session, bypass the PR cache and repaint."
 command = ["node", "bin/configure.js", "--refresh"]
+
+# Agent overview: a TUI tab per space (see bin/overview.js). Turn off with
+# "overview": false in the plugin's config.json.
+[[actions]]
+id = "overview"
+title = "Overview: open for this space"
+description = "Open (or focus) an overview tab listing this space's agents: status, activity, branch, PRs/issues and your notes."
+command = ["node", "bin/open-overview.js"]
+
+[[actions]]
+id = "overview-all"
+title = "Overview: open in every space"
+description = "Add an overview tab to every space in this session that does not have one, without moving you."
+command = ["node", "bin/open-overview.js", "--all"]
+
+[[panes]]
+id = "overview"
+title = "Agent overview"
+placement = "tab"
+command = ["node", "bin/overview.js"]

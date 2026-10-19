@@ -90,7 +90,9 @@ async function refresh(state, { repaint }) {
     } catch {
       // Unreadable pane: keep what was seen before.
     }
-    const seen = mergeSeen(state.seen[key] ?? [], scanRefs(text));
+    // Some agents (Codex) report their session id only after starting, so
+    // history kept under the pane id moves over instead of being dropped.
+    const seen = mergeSeen(state.seen[key] ?? state.seen[pane.pane_id] ?? [], scanRefs(text));
     state.seen[key] = seen;
 
     // Branch, PR and issue lines are shown by lib/live.js, only for the
