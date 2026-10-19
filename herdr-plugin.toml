@@ -57,6 +57,15 @@ command = ["node", "bin/live.js"]
 on = "workspace.renamed"
 command = ["node", "bin/live.js"]
 
+# Reordering tabs or spaces re-sorts the Spaces tab list and the panel.
+[[events]]
+on = "tab.moved"
+command = ["node", "bin/live.js"]
+
+[[events]]
+on = "workspace.moved"
+command = ["node", "bin/live.js"]
+
 [[actions]]
 id = "configure"
 title = "Configure: install the sidebar layout"

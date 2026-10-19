@@ -17,9 +17,10 @@ test('generic tab labels fall back to the agent title', () => {
 
 test('workspace tokens nest tabs with status glyphs and clear unused slots', () => {
   const ws = { workspace_id: 'w1' };
+  // Listed in on-screen order: t2 was moved in front of t1 and keeps its number.
   const tabs = [
-    { tab_id: 'w1:t2', workspace_id: 'w1', number: 2, label: 'web', agent_status: 'blocked' },
-    { tab_id: 'w1:t1', workspace_id: 'w1', number: 1, label: 'api', agent_status: 'working' },
+    { tab_id: 'w1:t2', workspace_id: 'w1', number: 2, label: 'api', agent_status: 'working' },
+    { tab_id: 'w1:t1', workspace_id: 'w1', number: 1, label: 'web', agent_status: 'blocked' },
     { tab_id: 'w2:t1', workspace_id: 'w2', number: 1, label: 'other', agent_status: 'idle' },
   ];
   const t = workspaceTokens(ws, tabs, []);
