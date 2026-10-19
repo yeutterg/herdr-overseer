@@ -7,8 +7,15 @@
 // output. Opened by the `overview` actions (bin/open-overview.js), which pass
 // the space in OVERSEER_WORKSPACE_ID.
 //
+// Two views, switched with tab (or 1 / 2):
+//   agents  each agent with status, activity, branch, PRs/issues, notes and
+//           the selected one's latest output
+//   git     the repos the agents touch, their branches (ahead/behind,
+//           uncommitted files), which agent drives each, and the PRs and
+//           issues hanging off them (lib/gitview.js)
+//
 // Keys: ↑/↓ or j/k select · enter go to the agent · n add a note ·
-// x delete the agent's latest note · q quit (closes the tab).
+// x delete the agent's latest note · tab switch view · q quit (closes the tab).
 
 const { call, snapshot } = require('../lib/ipc');
 const { stateFile, readJson, configDir } = require('../lib/session');
@@ -16,6 +23,7 @@ const { agentGroupTokens, GLYPH, isGenericLabel } = require('../lib/tokens');
 const { wrap } = require('../lib/live');
 const { notesFor, addNote, removeNote, readNotes } = require('../lib/notes');
 const { palette } = require('../lib/layout');
+const { buildGitModel, renderGitView } = require('../lib/gitview');
 
 const POLL_MS = 2000;
 const PREVIEW_LINES = 6;
@@ -71,7 +79,9 @@ const ui = {
   selected: null, // pane_id
   since: new Map(), // pane_id -> { status, at } (at = null: before this tab opened)
   preview: [],
+  view: 'agents', // agents | git
   mode: 'list', // list | note | confirm-delete
+  gitOrder: [], // pane ids in git-view order, for moving the selection there
   input: '',
   message: '',
   offset: 0,
@@ -131,7 +141,9 @@ function header(width) {
   const ws = ui.snap?.workspaces.find((w) => w.workspace_id === WORKSPACE);
   const counts = { blocked: 0, working: 0, done: 0, idle: 0 };
   for (const p of ui.agents) if (p.agent_status in counts) counts[p.agent_status] += 1;
-  const title = paint(` ${ws?.label ?? WORKSPACE} `, BOLD, rgb(C.text)) + paint('agents', rgb(C.muted));
+  const tab = (name, key) =>
+    ui.view === name ? paint(` ${key} ${name} `, BOLD, `${ESC}7m`, rgb(C.text)) : paint(` ${key} ${name} `, rgb(C.muted));
+  const title = paint(` ${ws?.label ?? WORKSPACE} `, BOLD, rgb(C.text)) + tab('agents', '1') + tab('git', '2');
   const tally = ['blocked', 'working', 'done', 'idle']
     .filter((s) => counts[s])
     .map((s) => paint(`${GLYPH[s]} ${counts[s]} ${STATUS_WORD[s]}`, rgb(STATUS_COLOR[s])))
@@ -183,6 +195,39 @@ function agentBlock(pane, width, notesAll) {
   return lines;
 }
 
+// Styles named by lib/gitview.js.
+const SEG_STYLE = {
+  text: rgb(C.text),
+  bold: BOLD + rgb(C.text),
+  muted: rgb(C.muted),
+  tree: rgb(C.muted),
+  repo: BOLD + rgb(C.text),
+  branch: rgb(C.text),
+  default: rgb(C.subtext),
+  ahead: rgb(C.done),
+  behind: rgb(C.blocked),
+  dirty: rgb(C.working),
+  'pr-open': rgb(C.pr),
+  'pr-merged': rgb(C.merged),
+  'pr-closed': rgb(C.blocked),
+  'pr-draft': rgb(C.muted),
+  issue: rgb(C.issue),
+  ...Object.fromEntries(Object.entries(STATUS_COLOR).map(([s, c]) => [`status-${s}`, rgb(c)])),
+};
+
+// Paints a line of [text, style] segments, cut to the screen width.
+function paintSegs(segs, width) {
+  let room = width;
+  let out = '';
+  for (const [text, style] of segs) {
+    if (room <= 0) break;
+    const shown = len(text) > room ? fit(text, room) : text;
+    out += paint(shown, SEG_STYLE[style] ?? '');
+    room -= len(shown);
+  }
+  return out;
+}
+
 function footer(width) {
   if (ui.mode === 'note') {
     const prompt = ' note › ';
@@ -192,7 +237,7 @@ function footer(width) {
   if (ui.mode === 'confirm-delete') {
     return [paint('─'.repeat(width), rgb(C.muted)), paint(' delete the latest note? y / n', BOLD, rgb(C.blocked))];
   }
-  const keys = '↑↓ select · enter go to agent · n note · x delete note · q quit';
+  const keys = '↑↓ select · enter go to agent · tab switch view · n note · x delete note · q quit';
   return [paint('─'.repeat(width), rgb(C.muted)), paint(` ${fit(ui.error || ui.message || keys, width - 1)}`, rgb(ui.error ? C.blocked : C.muted))];
 }
 
@@ -203,11 +248,28 @@ function render() {
   const bottom = footer(width);
   const bodyHeight = height - top.length - bottom.length;
 
-  const notesAll = readNotes();
   const body = [];
   let selStart = 0;
   let selEnd = 0;
-  for (const pane of ui.agents) {
+  if (ui.view === 'git') {
+    const details = readJson(stateFile('details'), {});
+    const { lines, agentLines } = renderGitView(buildGitModel(ui.agents, details), {
+      labelFor,
+      selected: ui.selected,
+      meta: readJson(stateFile('refmeta'), {}),
+    });
+    ui.gitOrder = [...new Set(agentLines.values())];
+    for (const [i, id] of agentLines) {
+      if (id === ui.selected) {
+        selStart = i;
+        selEnd = i + 1;
+        break;
+      }
+    }
+    body.push(...lines.map((segs) => paintSegs(segs, width)));
+  }
+  const notesAll = readNotes();
+  for (const pane of ui.view === 'agents' ? ui.agents : []) {
     const block = agentBlock(pane, width, notesAll);
     if (pane.pane_id === ui.selected) {
       selStart = body.length;
@@ -215,7 +277,7 @@ function render() {
     }
     body.push(...block, '');
   }
-  if (!ui.agents.length) body.push('', paint('  No agents are running in this space yet.', rgb(C.muted)));
+  if (ui.view === 'agents' && !ui.agents.length) body.push('', paint('  No agents are running in this space yet.', rgb(C.muted)));
 
   // Keep the selected agent on screen.
   if (selStart < ui.offset) ui.offset = selStart;
@@ -231,10 +293,12 @@ function render() {
 // ---- input ----------------------------------------------------------------------
 
 function move(delta) {
-  const i = ui.agents.findIndex((p) => p.pane_id === ui.selected);
-  const next = ui.agents[Math.max(0, Math.min(ui.agents.length - 1, i + delta))];
-  if (next && next.pane_id !== ui.selected) {
-    ui.selected = next.pane_id;
+  // The git view lists agents in a different order (by repo and branch).
+  const order = ui.view === 'git' && ui.gitOrder.length ? ui.gitOrder : ui.agents.map((p) => p.pane_id);
+  const i = order.indexOf(ui.selected);
+  const next = order[Math.max(0, Math.min(order.length - 1, i + delta))];
+  if (next && next !== ui.selected) {
+    ui.selected = next;
     ui.preview = [];
     loadPreview().then(render);
   }
@@ -278,7 +342,7 @@ function onKey(data) {
     ui.mode = 'list';
     return render();
   }
-  if (s === 'q' || s === '\x03') return quit();
+  if (s === 'q' || s === '\x03') return quit(0);
   if (s === 'j' || s === '\x1b[B' || s === '\x1bOB') move(1);
   else if (s === 'k' || s === '\x1b[A' || s === '\x1bOA') move(-1);
   else if (s === 'g') move(-Infinity);
@@ -292,13 +356,34 @@ function onKey(data) {
   } else if (s === 'x' && selectedPane()) {
     if (notesFor(selectedPane()).length) ui.mode = 'confirm-delete';
     else ui.message = 'no notes on this agent';
-  } else if (s === 'r') poll();
+  } else if (s === '\t' || s === 'v') ui.view = ui.view === 'agents' ? 'git' : 'agents';
+  else if (s === '1') ui.view = 'agents';
+  else if (s === '2') ui.view = 'git';
+  else if (s === 'r') poll();
   render();
 }
 
-function quit() {
+function quit(code = 0) {
   process.stdout.write(`${ESC}?25h${ESC}?1049l`);
-  process.exit(0);
+  process.exit(code);
+}
+
+// Exit code that tells the pane's shell loop (herdr-plugin.toml) to start
+// the overview again: open tabs pick up plugin updates without being closed.
+const RELOAD = 75;
+
+function watchForUpdates() {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  let timer = null;
+  for (const dir of ['bin', 'lib']) {
+    try {
+      fs.watch(path.join(__dirname, '..', dir), () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => quit(RELOAD), 500);
+      });
+    } catch {}
+  }
 }
 
 function main() {
@@ -310,8 +395,9 @@ function main() {
   if (process.stdin.isTTY) process.stdin.setRawMode(true);
   process.stdin.on('data', onKey);
   process.stdout.on('resize', render);
-  process.on('SIGTERM', quit);
-  process.on('SIGHUP', quit);
+  process.on('SIGTERM', () => quit(0));
+  process.on('SIGHUP', () => quit(0));
+  watchForUpdates();
   poll();
   setInterval(poll, POLL_MS);
 }

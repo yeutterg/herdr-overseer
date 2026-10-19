@@ -59,9 +59,25 @@ There is no branch on the space line, since a space's tabs can each be on a diff
     Refactoring the session store
 ```
 
-Each agent shows its status and how long it has been in it (counted from when the tab opened), its activity, branch, PRs/issues and your notes. The selected agent also shows its last few lines of output.
+It has two views; switch with `tab` (or `1` / `2`).
 
-Keys:
+**1 agents.** Each agent shows its status and how long it has been in it (counted from when the tab opened), its activity, branch, PRs/issues and your notes. The selected agent also shows its last few lines of output.
+
+**2 git.** Every repo the space's agents touch, as a tree. Each branch shows its commits ahead (`↑`) and behind (`↓`) the default branch and its uncommitted files (`✚`). Under each branch are the agent tabs working on it and the branch's PR, with the issues it closes. PRs and issues an agent linked in repos nobody has checked out are listed under those repos, with the agent that linked them, their title, and their state (draft, merged, closed). Worktrees are grouped with their repo.
+
+```
+ ■ restful-orchestrator  LiveRestful
+  ├─⎇ feature/brightstart-contracts  ↑5  ↓63  ✚90
+▸ │    ◐ manual updates
+  │    ◐ battery health
+  └─PR #64  ← manual updates  Define owner update request contract
+
+ □ restful-cloud  LiveRestful  linked, not checked out here
+    PR #606  ← manual updates  v2: truthful owner firmware-update requests
+    PR #608 merged  ← app: fix brightstart bounce back  fix: retain applied configuration
+```
+
+Keys (both views):
 
 | Key | Action |
 |---|---|
@@ -69,7 +85,10 @@ Keys:
 | `enter` | jump to the agent |
 | `n` | add a note |
 | `x` | delete the latest note |
+| `tab`, `1`, `2` | switch view |
 | `q` | close the tab |
+
+Open overview tabs restart themselves when the plugin's code changes, so updates show up without reopening them.
 
 Notes are kept per agent session, so they follow an agent across pane moves and restarts. An agent with notes gets a `✎` in the sidebar.
 

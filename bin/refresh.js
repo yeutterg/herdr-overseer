@@ -12,12 +12,15 @@ const fs = require('node:fs');
 
 const { call, snapshot } = require('../lib/ipc');
 const { SOURCE, stateFile, readJson, writeJson, userConfig } = require('../lib/session');
-const { gitInfo, isTrunk, prForBranch, issueFromBranch, scanRefs } = require('../lib/github');
-const { paneTokens } = require('../lib/tokens');
+const { gitInfo, isTrunk, prForBranch, refMeta, issueFromBranch, scanRefs } = require('../lib/github');
+const { paneTokens, collectRefs } = require('../lib/tokens');
 const { updateLive } = require('../lib/live');
 
 const AGENT_SORT = [{ field: { token: 'gsort' }, order: 'asc' }];
 const PR_TTL_MS = 60_000;
+// Titles and states of every linked PR/issue, for the overview's git view.
+const META_TTL_MS = 10 * 60_000;
+const META_DONE_TTL_MS = 24 * 3600_000; // merged or closed rarely changes
 const LOCK_STALE_MS = 60_000;
 const SCAN_LINES = 400;
 const SEEN_CAP = 8;
@@ -97,12 +100,20 @@ async function refresh(state, { repaint }) {
 
     // Branch, PR and issue lines are shown by lib/live.js, only for the
     // selected agent, so they are cached rather than reported here.
-    details[pane.pane_id] = paneTokens({
+    const linked = {
       git: info,
       pr: branchPr?.none ? null : branchPr,
       seen,
       branchIssue: info && !isTrunk(info) ? issueFromBranch(info.branch) : null,
-    });
+    };
+    // Display strings for the sidebar, plus structured data for the
+    // overview's git view.
+    details[pane.pane_id] = {
+      ...paneTokens(linked),
+      git: info,
+      branchPr: linked.pr?.number ? { n: linked.pr.number, state: linked.pr.state } : null,
+      refs: collectRefs(linked),
+    };
   });
 
   // Views are transient, so a restarted server needs the order set again.
@@ -119,6 +130,7 @@ async function refresh(state, { repaint }) {
   for (const r of results) if (r.status === 'rejected') console.error(`herdr-overseer: ${r.reason?.message ?? r.reason}`);
 
   writeJson(stateFile('details'), details);
+  await refreshMeta(state, details, now);
   // A restarted server lost every token, so forget what live.js last sent.
   if (repaint) writeJson(stateFile('live'), {});
   // Fresh snapshot: the lookups above can take a second or two.
@@ -126,6 +138,26 @@ async function refresh(state, { repaint }) {
 
   for (const key of Object.keys(state.seen)) if (!liveKeys.has(key)) delete state.seen[key];
   for (const [key, entry] of Object.entries(state.prs)) if (now - entry.at > 24 * 3600_000) delete state.prs[key];
+}
+
+async function refreshMeta(state, details, now) {
+  state.meta = state.meta ?? {};
+  const wanted = new Map();
+  for (const d of Object.values(details)) {
+    for (const ref of d.refs?.prs ?? []) if (ref.repo) wanted.set(`${ref.repo}#${ref.n}`, { ...ref, kind: 'pr' });
+    for (const ref of d.refs?.issues ?? []) if (ref.repo) wanted.set(`${ref.repo}#${ref.n}`, { ...ref, kind: 'issue' });
+  }
+  await Promise.all(
+    [...wanted].map(async ([key, ref]) => {
+      const cached = state.meta[key];
+      const ttl = cached && ['merged', 'closed'].includes(cached.state) ? META_DONE_TTL_MS : META_TTL_MS;
+      if (cached && !force && now - cached.at < ttl) return;
+      const meta = await refMeta(ref.repo, ref.kind, ref.n);
+      if (meta) state.meta[key] = { ...meta, at: now };
+    }),
+  );
+  for (const key of Object.keys(state.meta)) if (!wanted.has(key)) delete state.meta[key];
+  writeJson(stateFile('refmeta'), state.meta);
 }
 
 // Newest last, capped, de-duplicated.

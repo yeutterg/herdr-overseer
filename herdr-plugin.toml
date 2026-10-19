@@ -100,8 +100,9 @@ command = ["node", "bin/open-overview.js", "--all"]
 
 # The pane starts in its space's own directory (see bin/open-overview.js),
 # so the script is found through HERDR_PLUGIN_ROOT, not a relative path.
+# Exit code 75 means "the plugin changed, start me again".
 [[panes]]
 id = "overview"
 title = "Agent overview"
 placement = "tab"
-command = ["sh", "-c", "exec node \"$HERDR_PLUGIN_ROOT/bin/overview.js\""]
+command = ["sh", "-c", "while :; do node \"$HERDR_PLUGIN_ROOT/bin/overview.js\"; [ $? -eq 75 ] || exit 0; done"]
