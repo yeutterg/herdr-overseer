@@ -77,4 +77,5 @@ test('repo parsing and trunk detection', () => {
 
 test('window title format', () => {
   assert.equal(windowTitle('{session} › {workspace}', { session: 'restful', workspace: 'site' }), 'restful › site');
+  assert.equal(windowTitle('Herdr: {session} > {agent}', { session: 'restful', agent: 'Fix login race' }), 'Herdr: restful > Fix login race');
 });
