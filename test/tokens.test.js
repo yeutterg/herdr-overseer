@@ -177,3 +177,49 @@ test('branch names wrap after path separators and keep the icon', () => {
   assert.deepEqual(wrapPath('⎇ main', 23, 2), ['⎇ main']);
   assert.deepEqual(wrapPath('abcdefghijkl', 4, 2), ['abcd', 'efg…']);
 });
+
+test('the overview tab heads its space in the agents panel', () => {
+  const { agentGroupTokens, workspaceTokens } = require('../lib/tokens');
+  const snap = {
+    workspaces: [{ workspace_id: 'w1', label: 'api' }, { workspace_id: 'w2', label: 'web' }],
+    tabs: [{ tab_id: 'w1:t0', workspace_id: 'w1', label: 'overview' }, { tab_id: 'w1:t1', workspace_id: 'w1', label: 'fix' }, { tab_id: 'w2:t0', workspace_id: 'w2', label: 'overview' }],
+    panes: [
+      { pane_id: 'w1:p0', workspace_id: 'w1', tab_id: 'w1:t0', agent: 'overview', agent_status: 'idle' },
+      { pane_id: 'w1:p1', workspace_id: 'w1', tab_id: 'w1:t1', agent: 'claude', agent_status: 'blocked' },
+      { pane_id: 'w2:p0', workspace_id: 'w2', tab_id: 'w2:t0', agent: 'overview', agent_status: 'idle' },
+    ],
+    agents: [],
+  };
+  const g = agentGroupTokens(snap);
+  const order = [...g.keys()].sort((a, b) => (g.get(a).gsort < g.get(b).gsort ? -1 : 1));
+  assert.deepEqual(order, ['w1:p0', 'w1:p1', 'w2:p0']); // a space with no agents sorts last
+  assert.equal(g.get('w1:p0').group, 'api'); // clicking the header opens the overview
+  assert.equal(g.get('w1:p0').head, null);
+  assert.equal(g.get('w1:p1').group, null);
+  assert.equal(g.get('w1:p1').head, '\u200b  ● fix');
+  assert.equal(workspaceTokens(snap.workspaces[0], snap.tabs, snap.panes).tab1, '├ ≡ overview');
+});
+
+test('notes are dropped with their pane and old session-keyed notes move to the pane', (t) => {
+  const os = require('node:os');
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'overseer-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  process.env.HERDR_PLUGIN_STATE_DIR = dir;
+  process.env.HERDR_SOCKET_PATH = '/x/sessions/s1/herdr.sock';
+  const { pruneNotes, readNotes, addNote } = require('../lib/notes');
+  addNote({ pane_id: 'w1:p1' }, 'keep');
+  addNote({ pane_id: 'w1:p9' }, 'closed tab');
+  const all = readNotes();
+  all['agent-123'] = [{ at: 1, text: 'legacy' }];
+  all['s2:w1:p9'] = [{ at: 1, text: 'other session' }];
+  fs.writeFileSync(path.join(dir, 'notes.json'), JSON.stringify(all));
+  pruneNotes({
+    panes: [{ pane_id: 'w1:p1', terminal_id: 't1' }, { pane_id: 'w1:p2', terminal_id: 't2' }],
+    agents: [{ terminal_id: 't2', agent_session: { value: 'agent-123' } }],
+  });
+  const after = readNotes();
+  assert.deepEqual(Object.keys(after).sort(), ['s1:w1:p1', 's1:w1:p2', 's2:w1:p9']);
+  assert.equal(after['s1:w1:p2'][0].text, 'legacy');
+});

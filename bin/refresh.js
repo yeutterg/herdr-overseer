@@ -13,8 +13,9 @@ const fs = require('node:fs');
 const { call, snapshot } = require('../lib/ipc');
 const { SOURCE, stateFile, readJson, writeJson, userConfig } = require('../lib/session');
 const { gitInfo, isTrunk, prForBranch, refMeta, issueFromBranch, scanRefs } = require('../lib/github');
-const { paneTokens, collectRefs } = require('../lib/tokens');
+const { paneTokens, collectRefs, isAgent } = require('../lib/tokens');
 const { updateLive } = require('../lib/live');
+const { pruneNotes } = require('../lib/notes');
 
 const AGENT_SORT = [{ field: { token: 'gsort' }, order: 'asc' }];
 const PR_TTL_MS = 60_000;
@@ -48,6 +49,8 @@ function acquire(lock) {
 
 async function refresh(state, { repaint }) {
   const snap = await snapshot();
+  // Notes die with their tab. Not at startup: panes may still be restoring.
+  if (process.env.HERDR_PLUGIN_EVENT !== 'startup') pruneNotes(snap);
   const now = Date.now();
   const gitByCwd = new Map();
   const git = (cwd) => {
@@ -73,7 +76,7 @@ async function refresh(state, { repaint }) {
     return prByKey.get(key);
   };
 
-  const agentPanes = snap.panes.filter((p) => p.agent);
+  const agentPanes = snap.panes.filter(isAgent);
   const nest = userConfig().nest_agents !== false;
   const liveKeys = new Set();
   const details = {};

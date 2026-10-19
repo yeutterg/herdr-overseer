@@ -18,8 +18,8 @@
 // x delete the agent's latest note · tab switch view · q quit (closes the tab).
 
 const { call, snapshot } = require('../lib/ipc');
-const { stateFile, readJson, configDir } = require('../lib/session');
-const { agentGroupTokens, GLYPH, isGenericLabel } = require('../lib/tokens');
+const { SOURCE, stateFile, readJson, configDir } = require('../lib/session');
+const { agentGroupTokens, GLYPH, isGenericLabel, isAgent, OVERVIEW_AGENT } = require('../lib/tokens');
 const { wrap } = require('../lib/live');
 const { notesFor, addNote, removeNote, readNotes } = require('../lib/notes');
 const { palette } = require('../lib/layout');
@@ -95,14 +95,24 @@ function labelFor(pane) {
   return tab && !isGenericLabel(tab.label) ? tab.label : pane.agent;
 }
 
+// Herdr lists this tab in the agents panel once it reports itself as an
+// agent; that row carries the space's header, so clicking the header opens
+// the overview. Re-claimed whenever Herdr has forgotten it (e.g. a restart).
+async function claimRow(snap) {
+  const me = snap.panes.find((p) => p.pane_id === SELF);
+  if (!me || me.agent === OVERVIEW_AGENT) return;
+  await call('pane.report_agent', { pane_id: SELF, source: SOURCE, agent: OVERVIEW_AGENT, state: 'idle' });
+}
+
 async function poll() {
   try {
     const snap = await snapshot();
     ui.snap = snap;
     ui.error = '';
+    await claimRow(snap);
     const order = agentGroupTokens(snap);
     ui.agents = snap.panes
-      .filter((p) => p.agent && p.workspace_id === WORKSPACE && p.pane_id !== SELF)
+      .filter((p) => isAgent(p) && p.workspace_id === WORKSPACE && p.pane_id !== SELF)
       .sort((a, b) => (order.get(a.pane_id).gsort < order.get(b.pane_id).gsort ? -1 : 1));
     const now = Date.now();
     for (const p of ui.agents) {
