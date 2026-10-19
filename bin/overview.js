@@ -10,7 +10,7 @@
 // Two views, switched with tab (or 1 / 2):
 //   agents  each agent with status, activity, branch, PRs/issues, notes and
 //           the selected one's latest output
-//   git     the repos the agents touch, their branches (ahead/behind,
+//   git     a tree per repo the agents work in: branches (ahead/behind,
 //           uncommitted files), which agent drives each, and the PRs and
 //           issues hanging off them (lib/gitview.js)
 //
@@ -211,6 +211,7 @@ const SEG_STYLE = {
   bold: BOLD + rgb(C.text),
   muted: rgb(C.muted),
   tree: rgb(C.muted),
+  faint: DIM + rgb(C.muted),
   repo: BOLD + rgb(C.text),
   branch: rgb(C.text),
   default: rgb(C.subtext),
@@ -263,10 +264,13 @@ function render() {
   let selEnd = 0;
   if (ui.view === 'git') {
     const details = readJson(stateFile('details'), {});
-    const { lines, agentLines } = renderGitView(buildGitModel(ui.agents, details), {
+    const meta = readJson(stateFile('refmeta'), {});
+    const trees = readJson(stateFile('trees'), []);
+    const { lines, agentLines } = renderGitView(buildGitModel(ui.agents, details, trees, meta), {
       labelFor,
       selected: ui.selected,
-      meta: readJson(stateFile('refmeta'), {}),
+      meta,
+      width,
     });
     ui.gitOrder = [...new Set(agentLines.values())];
     for (const [i, id] of agentLines) {

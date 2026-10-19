@@ -63,7 +63,13 @@ It has two views; switch with `tab` (or `1` / `2`).
 
 **1 agents.** Each agent shows its status and how long it has been in it (counted from when the tab opened), its activity, branch, PRs/issues and your notes. The selected agent also shows its last few lines of output.
 
-**2 git.** Every repo the space's agents touch, as a tree. Each branch shows its commits ahead (`↑`) and behind (`↓`) the default branch and its uncommitted files (`✚`). Under each branch are the agent tabs working on it and the branch's PR, with the issues it closes. PRs and issues an agent linked in repos nobody has checked out are listed under those repos, with the agent that linked them, their title, and their state (draft, merged, closed). Worktrees are grouped with their repo.
+**2 git.** A tree for each repo the space's agents work in. That isn't only the directory an agent was started in: the paths an agent prints count too. An agent that runs in an orchestrator repo but edits worktrees of other repos is listed under those repos. A repo appears under its own name, with:
+
+- its default branch, and how far your local copy has drifted from GitHub's;
+- each branch: commits ahead of and behind the default branch, and when it last changed. A branch stacked on another nests under it;
+- under each branch: the agent tabs working on it, its PR (title and state) and its worktree with any uncommitted files.
+
+Branches with no agent or PR (other worktrees with commits in the last three days) are listed dimmed, one line each. PRs and issues in repos you have no local clone of are listed under the repo's name. The default branch comes from GitHub, since a clone's `origin/HEAD` can be out of date.
 
 ```
  ■ restful-orchestrator  LiveRestful

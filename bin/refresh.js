@@ -9,12 +9,14 @@
 // once more when it finishes.
 
 const fs = require('node:fs');
+const path = require('node:path');
 
 const { call, snapshot } = require('../lib/ipc');
 const { SOURCE, stateFile, readJson, writeJson, userConfig } = require('../lib/session');
-const { gitInfo, isTrunk, prForBranch, refMeta, issueFromBranch, scanRefs } = require('../lib/github');
+const { run, gitInfo, defaultBranch, parseRepo, isTrunk, prForBranch, refMeta, issueFromBranch, scanRefs } = require('../lib/github');
 const { paneTokens, collectRefs, isAgent } = require('../lib/tokens');
 const { updateLive } = require('../lib/live');
+const { touchedTops, findClones, repoTree } = require('../lib/repotree');
 const { pruneNotes } = require('../lib/notes');
 
 const AGENT_SORT = [{ field: { token: 'gsort' }, order: 'asc' }];
@@ -25,6 +27,9 @@ const META_DONE_TTL_MS = 24 * 3600_000; // merged or closed rarely changes
 const LOCK_STALE_MS = 60_000;
 const SCAN_LINES = 400;
 const SEEN_CAP = 8;
+const TOUCHED_CAP = 8;
+const TREE_TTL_MS = 30_000;
+const DEFAULT_TTL_MS = 24 * 3600_000;
 
 const force = process.argv.includes('--force');
 // Herdr loses reported tokens on restart, so a startup run repaints everything.
@@ -77,6 +82,8 @@ async function refresh(state, { repaint }) {
   };
 
   const agentPanes = snap.panes.filter(isAgent);
+  const topCache = new Map();
+  state.touched = state.touched ?? {};
   const nest = userConfig().nest_agents !== false;
   const liveKeys = new Set();
   const details = {};
@@ -100,6 +107,11 @@ async function refresh(state, { repaint }) {
     // history kept under the pane id moves over instead of being dropped.
     const seen = mergeSeen(state.seen[key] ?? state.seen[pane.pane_id] ?? [], scanRefs(text));
     state.seen[key] = seen;
+    // Checkouts named in its output: the repos it really works in.
+    const prevTouched = state.touched[key] ?? state.touched[pane.pane_id] ?? [];
+    const found = await touchedTops(text, topCache);
+    const touched = [...prevTouched.filter((t) => !found.includes(t)), ...found].slice(-TOUCHED_CAP);
+    state.touched[key] = touched;
 
     // Branch, PR and issue lines are shown by lib/live.js, only for the
     // selected agent, so they are cached rather than reported here.
@@ -116,6 +128,7 @@ async function refresh(state, { repaint }) {
       git: info,
       branchPr: linked.pr?.number ? { n: linked.pr.number, state: linked.pr.state } : null,
       refs: collectRefs(linked),
+      touched,
     };
   });
 
@@ -134,12 +147,14 @@ async function refresh(state, { repaint }) {
 
   writeJson(stateFile('details'), details);
   await refreshMeta(state, details, now);
+  await refreshTrees(state, details, now);
   // A restarted server lost every token, so forget what live.js last sent.
   if (repaint) writeJson(stateFile('live'), {});
   // Fresh snapshot: the lookups above can take a second or two.
   await updateLive(null, { forceTitle: true });
 
   for (const key of Object.keys(state.seen)) if (!liveKeys.has(key)) delete state.seen[key];
+  for (const key of Object.keys(state.touched)) if (!liveKeys.has(key)) delete state.touched[key];
   for (const [key, entry] of Object.entries(state.prs)) if (now - entry.at > 24 * 3600_000) delete state.prs[key];
 }
 
@@ -154,13 +169,103 @@ async function refreshMeta(state, details, now) {
     [...wanted].map(async ([key, ref]) => {
       const cached = state.meta[key];
       const ttl = cached && ['merged', 'closed'].includes(cached.state) ? META_DONE_TTL_MS : META_TTL_MS;
-      if (cached && !force && now - cached.at < ttl) return;
+      // Older entries have no PR branch, which the git view needs.
+      const stale = ref.kind === 'pr' && cached && !('head' in cached);
+      if (cached && !stale && !force && now - cached.at < ttl) return;
       const meta = await refMeta(ref.repo, ref.kind, ref.n);
       if (meta) state.meta[key] = { ...meta, at: now };
     }),
   );
   for (const key of Object.keys(state.meta)) if (!wanted.has(key)) delete state.meta[key];
   writeJson(stateFile('refmeta'), state.meta);
+}
+
+// The git view's repo trees: every repo an agent is in or touches, plus local
+// clones of repos whose PRs agents link. Written to trees-<session>.json.
+async function refreshTrees(state, details, now) {
+  state.trees = state.trees ?? {};
+  state.defaults = state.defaults ?? {};
+  const meta = state.meta ?? {};
+  const defaultFor = async (slug) => {
+    const cached = state.defaults[slug];
+    if (cached && now - cached.at < DEFAULT_TTL_MS) return cached.name;
+    const name = await defaultBranch(slug);
+    if (name) state.defaults[slug] = { at: now, name };
+    return name ?? cached?.name ?? null;
+  };
+  const seeds = new Map(); // checkout top -> { wanted, touched }
+  const seed = (top) => {
+    if (!seeds.has(top)) seeds.set(top, { wanted: new Set(), touched: new Set() });
+    return seeds.get(top);
+  };
+  const prHeads = new Map(); // slug -> branch names of linked PRs
+  for (const d of Object.values(details)) {
+    if (d.git?.top) {
+      const s = seed(d.git.top);
+      if (d.git.branch && d.git.branch !== 'HEAD') s.wanted.add(d.git.branch);
+      s.touched.add(d.git.top);
+    }
+    for (const top of d.touched ?? []) seed(top).touched.add(top);
+    for (const ref of d.refs?.prs ?? []) {
+      const head = meta[`${ref.repo}#${ref.n}`]?.head;
+      if (!ref.repo || !head) continue;
+      if (!prHeads.has(ref.repo)) prHeads.set(ref.repo, new Set());
+      prHeads.get(ref.repo).add(head);
+    }
+  }
+
+  // Worktrees of one repo share a tree; group seeds by their git common dir.
+  const groups = new Map();
+  await Promise.all(
+    [...seeds].map(async ([top, s]) => {
+      const out = await run('git', ['-C', top, 'rev-parse', '--git-common-dir'], top, 3000);
+      if (!out) return;
+      const key = path.resolve(top, out.trim());
+      if (!groups.has(key)) groups.set(key, { top, wanted: new Set(), touched: new Set() });
+      const g = groups.get(key);
+      for (const b of s.wanted) g.wanted.add(b);
+      for (const t of s.touched) g.touched.add(t);
+    }),
+  );
+
+  const build = async (key, g) => {
+    const sig = JSON.stringify([[...g.wanted].sort(), [...g.touched].sort()]);
+    const cached = state.trees[key];
+    if (cached && cached.sig === sig && !force && now - cached.at < TREE_TTL_MS) return cached.tree;
+    const tree = await repoTree(g.top, { ...g, defaultFor });
+    if (tree) state.trees[key] = { at: now, sig, tree };
+    return tree;
+  };
+  const trees = new Map();
+  const addHeads = (g, slug) => {
+    for (const head of prHeads.get(slug) ?? []) g.wanted.add(head);
+  };
+  // Each repo's slug, so the branches of PRs linked there are shown too.
+  await Promise.all(
+    [...groups.values()].map(async (g) => {
+      addHeads(g, parseRepo(await run('git', ['-C', g.top, 'remote', 'get-url', 'origin'], g.top, 3000)));
+    }),
+  );
+  await Promise.all([...groups].map(async ([key, g]) => trees.set(key, await build(key, g))));
+
+  // Linked repos no agent is in: look for a clone next to the known ones.
+  const known = new Set([...trees.values()].filter(Boolean).map((t) => t.slug));
+  const missing = [...prHeads.keys()].filter((slug) => !known.has(slug));
+  if (missing.length) {
+    const roots = new Set([...trees.values()].filter(Boolean).map((t) => path.dirname(t.top)));
+    const clones = findClones(roots);
+    await Promise.all(
+      missing.map(async (slug) => {
+        const top = clones.get(slug);
+        if (!top) return;
+        const g = { top, wanted: new Set(prHeads.get(slug)), touched: new Set() };
+        const tree = await build(path.join(top, '.git'), g);
+        if (tree) trees.set(tree.key, tree);
+      }),
+    );
+  }
+  for (const key of Object.keys(state.trees)) if (!trees.has(key)) delete state.trees[key];
+  writeJson(stateFile('trees'), [...trees.values()].filter(Boolean));
 }
 
 // Newest last, capped, de-duplicated.
