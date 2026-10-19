@@ -67,5 +67,5 @@ command = ["node", "bin/configure.js", "--remove"]
 [[actions]]
 id = "refresh"
 title = "Refresh now"
-description = "Re-read every pane, bypass the PR cache and repaint."
-command = ["node", "bin/refresh.js", "--force"]
+description = "Re-read every pane in every running session, bypass the PR cache and repaint."
+command = ["node", "bin/configure.js", "--refresh"]

@@ -3,6 +3,7 @@
 
 // --apply   write (or repair) the managed sidebar block and reload sessions
 // --remove  remove it, clear this plugin's tokens and window title, reload
+// --refresh repaint every running session now
 // --print   print the block without touching anything
 
 const fs = require('node:fs');
@@ -55,6 +56,10 @@ async function main() {
     console.log(block(fs.readFileSync(CONFIG, 'utf8')));
     return;
   }
+  if (mode === '--refresh') {
+    refreshAll();
+    return;
+  }
   const before = fs.readFileSync(CONFIG, 'utf8');
   const after = mode === '--remove' ? stripBlock(before) : applyBlock(before);
   if (after !== before) {
@@ -66,16 +71,20 @@ async function main() {
   }
   if (mode === '--remove') await eachSession(clearTokens);
   await eachSession((sock) => call('server.reload_config', {}, sock));
-  if (mode !== '--remove') {
-    // Paint tokens now rather than on the next agent event.
-    const { spawnSync } = require('node:child_process');
-    for (const sock of sessionSockets()) {
-      spawnSync(process.execPath, [path.join(__dirname, 'refresh.js'), '--force'], {
-        env: { ...process.env, HERDR_SOCKET_PATH: sock, HERDR_SESSION: '' },
-        stdio: 'inherit',
-        timeout: 30_000,
-      });
-    }
+  // Paint tokens now rather than on the next agent event.
+  if (mode !== '--remove') refreshAll();
+}
+
+// Hooks only ever refresh the session they fired in, so a session with no
+// agent activity keeps old tokens until something here repaints it.
+function refreshAll() {
+  const { spawnSync } = require('node:child_process');
+  for (const sock of sessionSockets()) {
+    spawnSync(process.execPath, [path.join(__dirname, 'refresh.js'), '--force'], {
+      env: { ...process.env, HERDR_SOCKET_PATH: sock, HERDR_SESSION: '' },
+      stdio: 'inherit',
+      timeout: 30_000,
+    });
   }
 }
 

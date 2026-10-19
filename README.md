@@ -44,7 +44,7 @@ Tabs with generic names show their pane's terminal title instead. Herdr gives ea
 
 ## Where PRs and issues come from
 
-- **The pane's branch.** On anything other than the default branch, `gh pr list --head <branch>` finds its PR, the PR's state and the issues it closes. A number in the branch name also counts as an issue: `fix/138-…`, `issue-138`, `gh-138`.
+- **The pane's branch.** On anything other than the default branch, `gh pr list --head <branch>` finds its PR, the PR's state and the issues it closes. Merged or closed PRs drop off after 3 days. A number in the branch name also counts as an issue: `fix/138-…`, `issue-138`, `gh-138`.
 - **URLs printed in the pane.** Any `github.com/<owner>/<repo>/pull/N` or `/issues/N` URL in the last 400 lines is remembered for that agent session (the last 8). This catches PRs and issues an agent created while staying on `main`.
 
 References to the same repo show as `#N`, and references to another repo show as `repo#N`. PR lookups are cached for 60 seconds.
@@ -89,7 +89,7 @@ The available placeholders are `{session}`, `{agent}`, `{workspace}`, `{tab}` an
 |---|---|
 | `configure` | Install or repair the sidebar layout |
 | `unconfigure` | Remove the layout, clear tokens, the agent order and the window title. Run this before uninstalling. |
-| `refresh` | Repaint now, bypassing the PR cache |
+| `refresh` | Repaint every running session now, bypassing the PR cache |
 
 ## Development
 
