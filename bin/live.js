@@ -9,6 +9,6 @@ const { updateLive } = require('../lib/live');
 const tick = process.argv.includes('--tick');
 
 updateLive(null, { forceTitle: !tick }).catch((err) => {
-  if (!tick) console.error(`herdr-glance live: ${err.message}`);
+  if (!tick) console.error(`herdr-overseer live: ${err.message}`);
   process.exitCode = tick ? 0 : 1;
 });

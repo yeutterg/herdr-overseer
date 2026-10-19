@@ -1,4 +1,4 @@
-# Herdr Glance
+# Herdr Overseer
 
 A [Herdr](https://herdr.dev) plugin that makes the sidebar answer "what is each agent doing, and what has it produced?" without clicking around.
 
@@ -41,6 +41,48 @@ Both levels are sorted by priority, using the same ranking as Herdr's own `prior
 
 There is no branch on the space line, since a space's tabs can each be on a different branch. Tabs with generic names show their pane's terminal title instead. Herdr gives each space one click target, so clicking a nested tab line focuses the space, not that tab.
 
+**Agent overview** (optional): a full-screen tab, one per space, showing only that space's agents:
+
+```
+ dark-factory agents   ● 1 needs you  ·  ◐ 1 working  ·  ○ 1 idle
+──────────────────────────────────────────────────────────────────
+▸ ● review-fix                                  claude · needs you 2m
+    Waiting for approval to run npm install
+    ⎇ fix/138-login
+    PR #142
+    Issue #138
+    ✎ 10:42 check the migration before approving
+    latest output
+    │ Do you want to proceed? (y/n)
+
+  ◐ api                                           codex · working 14m
+    Refactoring the session store
+```
+
+Each agent shows its status and how long it has been in it (counted from when the tab opened), its activity, branch, PRs/issues and your notes. The selected agent also shows its last few lines of output.
+
+Keys:
+
+| Key | Action |
+|---|---|
+| `↑` `↓` or `j` `k` | select |
+| `enter` | jump to the agent |
+| `n` | add a note |
+| `x` | delete the latest note |
+| `q` | close the tab |
+
+Notes are kept per agent session, so they follow an agent across pane moves and restarts. An agent with notes gets a `✎` in the sidebar.
+
+To open one, run **Overview: open for this space** (`yeutterg.herdr-overseer.overview`). To add one to every space, run **Overview: open in every space** (`overview-all`). Either way, a space that already has an overview tab just gets it focused. You can bind a key to an action in Herdr's `config.toml`:
+
+```toml
+[[keys.command]]
+key = "prefix+o"
+type = "plugin_action"
+command = "yeutterg.herdr-overseer.overview"
+description = "agent overview"
+```
+
 **Window title**: the outer terminal window is titled `Herdr: <session>`. This helps tiling window managers and makes it easier to remember which session is which.
 
 ## Where PRs and issues come from
@@ -71,30 +113,31 @@ Herdr doesn't tell plugins how wide the sidebar is, so wrapped lines break at `u
 ## Install
 
 ```bash
-herdr plugin install yeutterg/herdr-glance
-herdr plugin action invoke yeutterg.herdr-glance.configure
+herdr plugin install yeutterg/herdr-overseer
+herdr plugin action invoke yeutterg.herdr-overseer.configure
 ```
 
 For development, run `herdr plugin link /path/to/this/repo` instead of `install`.
 
-Configure refuses to run if another plugin already owns `[ui.sidebar.agents]` or `[ui.sidebar.spaces]`. Run that plugin's unconfigure action first. It backs up `config.toml` to `config.toml.glance-backup` before every write, then reloads every running session.
+Configure refuses to run if another plugin already owns `[ui.sidebar.agents]` or `[ui.sidebar.spaces]`. Run that plugin's unconfigure action first. It backs up `config.toml` to `config.toml.overseer-backup` before every write, then reloads every running session.
 
 Colours follow your `[theme] name` (Tokyo Night and Catppuccin are included). Re-run Configure after switching themes.
 
 ## Options
 
-`$(herdr plugin config-dir yeutterg.herdr-glance)/config.json`:
+`$(herdr plugin config-dir yeutterg.herdr-overseer)/config.json`:
 
 ```json
 {
   "window_title": "Herdr: {session}",
   "nest_agents": true,
   "details": "selected",
-  "wrap_width": 23
+  "wrap_width": 23,
+  "overview": true
 }
 ```
 
-The available placeholders are `{session}`, `{agent}`, `{workspace}`, `{tab}` and `{hostname}`. `{agent}` is the focused tab as the sidebar names it (its own name, or the agent's activity when the name is generic). An empty string leaves the window title alone. Setting `nest_agents` to `false` turns off nesting and leaves the order to Herdr's `agent_panel_sort`; each agent then shows its space name on its first line. With `details` set to `"always"`, every agent shows its branch and PRs/issues, not just the selected one. `wrap_width` is the number of text columns for the selected agent's wrapped activity; it defaults to `ui.sidebar_width` minus 3.
+The available placeholders are `{session}`, `{agent}`, `{workspace}`, `{tab}` and `{hostname}`. `{agent}` is the focused tab as the sidebar names it (its own name, or the agent's activity when the name is generic). An empty string leaves the window title alone. Setting `overview` to `false` turns off the overview actions. Setting `nest_agents` to `false` turns off nesting and leaves the order to Herdr's `agent_panel_sort`; each agent then shows its space name on its first line. With `details` set to `"always"`, every agent shows its branch and PRs/issues, not just the selected one. `wrap_width` is the number of text columns for the selected agent's wrapped activity; it defaults to `ui.sidebar_width` minus 3.
 
 ## Actions
 

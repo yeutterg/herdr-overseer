@@ -1,5 +1,5 @@
-id = "yeutterg.herdr-glance"
-name = "Herdr Glance"
+id = "yeutterg.herdr-overseer"
+name = "Herdr Overseer"
 version = "0.1.0"
 min_herdr_version = "0.9.0"
 description = "Status-first sidebar: tab title, live activity and the PRs/issues each agent is working on, tabs nested under their space, and the session name in the window title."

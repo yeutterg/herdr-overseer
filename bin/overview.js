@@ -5,7 +5,7 @@
 // agent in ONE space: status, how long it has been in that state, its
 // activity, branch, PRs/issues, your notes, and the selected agent's latest
 // output. Opened by the `overview` actions (bin/open-overview.js), which pass
-// the space in GLANCE_WORKSPACE_ID.
+// the space in OVERSEER_WORKSPACE_ID.
 //
 // Keys: ↑/↓ or j/k select · enter go to the agent · n add a note ·
 // x delete the agent's latest note · q quit (closes the tab).
@@ -20,7 +20,7 @@ const { palette } = require('../lib/layout');
 const POLL_MS = 2000;
 const PREVIEW_LINES = 6;
 
-const WORKSPACE = process.env.GLANCE_WORKSPACE_ID || process.env.HERDR_WORKSPACE_ID;
+const WORKSPACE = process.env.OVERSEER_WORKSPACE_ID || process.env.HERDR_WORKSPACE_ID;
 const SELF = process.env.HERDR_PANE_ID;
 
 let C;
@@ -80,7 +80,9 @@ const ui = {
 
 function labelFor(pane) {
   const tab = ui.snap.tabs.find((t) => t.tab_id === pane.tab_id);
-  return tab && !isGenericLabel(tab.label) ? tab.label : pane.terminal_title_stripped || pane.agent;
+  // Same rule as the sidebar: generic tab names ("1", "claude") show the
+  // agent's name, since the activity is on the next line anyway.
+  return tab && !isGenericLabel(tab.label) ? tab.label : pane.agent;
 }
 
 async function poll() {
@@ -142,8 +144,10 @@ function agentBlock(pane, width, notesAll) {
   const status = pane.agent_status;
   const color = rgb(STATUS_COLOR[status] ?? C.muted);
   const since = ui.since.get(pane.pane_id);
-  const right = `${pane.agent} · ${STATUS_WORD[status] ?? status}${since?.at ? ` ${ago(Date.now() - since.at)}` : ''}`;
-  const label = fit(labelFor(pane), width - len(right) - 7);
+  const name = labelFor(pane);
+  const state = `${STATUS_WORD[status] ?? status}${since?.at ? ` ${ago(Date.now() - since.at)}` : ''}`;
+  const right = name === pane.agent ? state : `${pane.agent} · ${state}`;
+  const label = fit(name, width - len(right) - 7);
   const pad = ' '.repeat(Math.max(1, width - 4 - len(label) - len(right) - 1));
   const lines = [
     `${sel ? paint('▸', BOLD, rgb(C.text)) : ' '} ${paint(GLYPH[status] ?? GLYPH.unknown, color)} ${paint(label, BOLD, sel ? rgb(C.text) : color)}${pad}${paint(right, rgb(C.muted))}`,
@@ -299,7 +303,7 @@ function quit() {
 
 function main() {
   if (!WORKSPACE) {
-    console.error('herdr-glance overview: no space given (GLANCE_WORKSPACE_ID); open it with the overview action.');
+    console.error('herdr-overseer overview: no space given (OVERSEER_WORKSPACE_ID); open it with the overview action.');
     process.exit(1);
   }
   process.stdout.write(`${ESC}?1049h${ESC}?25l`);

@@ -2,7 +2,7 @@
 'use strict';
 
 // Opens the agent overview (bin/overview.js) as a tab named "overview" in a
-// space, scoped to that space through GLANCE_WORKSPACE_ID. A space that
+// space, scoped to that space through OVERSEER_WORKSPACE_ID. A space that
 // already has one gets it focused instead of a second copy.
 //
 //   (no args)  the space you are in
@@ -14,7 +14,7 @@ const { call, snapshot } = require('../lib/ipc');
 const { userConfig } = require('../lib/session');
 
 const TAB_LABEL = 'overview';
-const PLUGIN_ID = process.env.HERDR_PLUGIN_ID ?? 'yeutterg.herdr-glance';
+const PLUGIN_ID = process.env.HERDR_PLUGIN_ID ?? 'yeutterg.herdr-overseer';
 
 async function open(snap, workspaceId, focus) {
   const existing = snap.tabs.find((t) => t.workspace_id === workspaceId && t.label === TAB_LABEL);
@@ -27,7 +27,7 @@ async function open(snap, workspaceId, focus) {
     entrypoint: 'overview',
     placement: 'tab',
     workspace_id: workspaceId,
-    env: { GLANCE_WORKSPACE_ID: workspaceId },
+    env: { OVERSEER_WORKSPACE_ID: workspaceId },
     focus,
   });
   const tabId = opened.plugin_pane?.pane?.tab_id;
@@ -53,6 +53,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(`herdr-glance overview: ${err.message}`);
+  console.error(`herdr-overseer overview: ${err.message}`);
   process.exitCode = 1;
 });

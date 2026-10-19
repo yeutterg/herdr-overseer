@@ -67,7 +67,7 @@ async function clearTokens(sock) {
 }
 
 function backup() {
-  const copy = `${CONFIG}.glance-backup`;
+  const copy = `${CONFIG}.overseer-backup`;
   fs.copyFileSync(CONFIG, copy);
   return copy;
 }
@@ -121,6 +121,6 @@ function refreshAll() {
 }
 
 main().catch((err) => {
-  console.error(`herdr-glance configure: ${err.message}`);
+  console.error(`herdr-overseer configure: ${err.message}`);
   process.exitCode = 1;
 });

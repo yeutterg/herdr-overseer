@@ -116,7 +116,7 @@ async function refresh(state, { repaint }) {
       : [call('agent.view.clear', { source: SOURCE })];
 
   const results = await Promise.allSettled([...paneJobs, ...view]);
-  for (const r of results) if (r.status === 'rejected') console.error(`herdr-glance: ${r.reason?.message ?? r.reason}`);
+  for (const r of results) if (r.status === 'rejected') console.error(`herdr-overseer: ${r.reason?.message ?? r.reason}`);
 
   writeJson(stateFile('details'), details);
   // A restarted server lost every token, so forget what live.js last sent.
@@ -167,6 +167,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(`herdr-glance refresh: ${err.message}`);
+  console.error(`herdr-overseer refresh: ${err.message}`);
   process.exitCode = 1;
 });

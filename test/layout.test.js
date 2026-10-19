@@ -23,7 +23,7 @@ test('the timer lands inside [ui], and never over a user tab bar', () => {
   assert.equal(own.timer, false);
   assert.equal((own.text.match(/tab_bar_right/g) ?? []).length, 1);
   const noUi = applyBlock('onboarding = false\n', 'x');
-  assert.ok(/\[ui\]\n# >>> herdr-glance timer/.test(noUi.text));
+  assert.ok(/\[ui\]\n# >>> herdr-overseer timer/.test(noUi.text));
 });
 
 test('refuses to fight another sidebar table', () => {
