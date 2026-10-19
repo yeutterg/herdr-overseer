@@ -98,8 +98,10 @@ title = "Overview: open in every space"
 description = "Add an overview tab to every space in this session that does not have one, without moving you."
 command = ["node", "bin/open-overview.js", "--all"]
 
+# The pane starts in its space's own directory (see bin/open-overview.js),
+# so the script is found through HERDR_PLUGIN_ROOT, not a relative path.
 [[panes]]
 id = "overview"
 title = "Agent overview"
 placement = "tab"
-command = ["node", "bin/overview.js"]
+command = ["sh", "-c", "exec node \"$HERDR_PLUGIN_ROOT/bin/overview.js\""]

@@ -17,6 +17,17 @@ const { userConfig } = require('../lib/session');
 const TAB_LABEL = 'overview';
 const PLUGIN_ID = process.env.HERDR_PLUGIN_ID ?? 'yeutterg.herdr-overseer';
 
+// Herdr names a space after the directory of its first tab unless you named
+// it yourself, and the overview tab goes first. So it must start in the
+// space's own directory (that of its first other tab), not the plugin's.
+function spaceDir(snap, workspaceId) {
+  for (const tab of snap.tabs.filter((t) => t.workspace_id === workspaceId && t.label !== TAB_LABEL)) {
+    const pane = snap.panes.find((p) => p.tab_id === tab.tab_id && p.cwd);
+    if (pane) return pane.cwd;
+  }
+  return null;
+}
+
 async function open(snap, workspaceId, focus) {
   const existing = snap.tabs.find((t) => t.workspace_id === workspaceId && t.label === TAB_LABEL);
   if (existing) {
@@ -29,6 +40,7 @@ async function open(snap, workspaceId, focus) {
     placement: 'tab',
     workspace_id: workspaceId,
     env: { OVERSEER_WORKSPACE_ID: workspaceId },
+    cwd: spaceDir(snap, workspaceId),
     focus,
   });
   const tabId = opened.plugin_pane?.pane?.tab_id;
