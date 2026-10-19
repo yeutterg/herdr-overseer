@@ -31,7 +31,7 @@ async function eachSession(fn) {
 
 async function clearTokens(sock) {
   const snap = await snapshot(sock);
-  const paneTokens = { branch: null, pr: null, pr_state: null, issues: null };
+  const paneTokens = { gap: null, group: null, gsort: null, branch: null, pr: null, pr_state: null, issues: null };
   const wsTokens = Object.fromEntries(Array.from({ length: MAX_TABS }, (_, i) => [`tab${i + 1}`, null]));
   await Promise.allSettled([
     ...snap.panes.map((p) => call('pane.report_metadata', { pane_id: p.pane_id, source: SOURCE, tokens: paneTokens }, sock)),
@@ -39,6 +39,7 @@ async function clearTokens(sock) {
       call('workspace.report_metadata', { workspace_id: w.workspace_id, source: SOURCE, tokens: wsTokens }, sock),
     ),
     call('client.window_title.clear', {}, sock),
+    call('agent.view.clear', { source: SOURCE }, sock),
   ]);
 }
 

@@ -2,17 +2,24 @@
 
 A [Herdr](https://herdr.dev) plugin that makes the sidebar answer "what is each agent doing, and what has it produced?" without clicking around.
 
-**Agents panel**: each agent gets three lines, coloured by status rather than by vendor:
+**Agents panel**: agents are nested under their space, and each agent gets three lines, coloured by status rather than by vendor:
 
 ```
-● restful · auth-refactor · working
-  Fixing token refresh race in middleware
+restful
+  ▲ auth-refactor · blocked
+  Waiting for approval to run npm install
   ⎇ fix/138-token-race · PR #142 · Issue #138
+
+  ● working
+  Fixing token refresh race in middleware
+  ⎇ main
 ```
 
-1. Status icon, space, tab name and status text. Generic tab names like `1` or `claude` are hidden.
+1. Status icon, tab name and status text. Generic tab names like `1` or `claude` are hidden.
 2. The agent's live activity: the terminal title it sets, which Herdr repaints on its own.
 3. Branch, PRs and issues.
+
+Spaces appear in sidebar order. Within a space, agents waiting on you come first, then working, done and idle. This replaces Herdr's own panel order: the panel header reads **by space**, and **unconfigure** gives the order back to Herdr.
 
 **Spaces panel**: each space lists its tabs underneath, with a status glyph per tab:
 
@@ -44,7 +51,7 @@ References to the same repo show as `#N`, and references to another repo show as
 
 ## How it works
 
-There's no daemon. Herdr runs `bin/refresh.js` on startup and on agent status, tab and pane events, and `bin/title.js` on focus changes. Overlapping runs are serialised per session. The plugin reports [custom sidebar tokens](https://herdr.dev/docs/configuration) (`$branch`, `$pr`, `$pr_state`, `$issues`, `$tab1…$tab14`), and the **Configure** action writes a marked block into `config.toml` that lays those tokens out.
+There's no daemon. Herdr runs `bin/refresh.js` on startup and on agent status, tab and pane events, and `bin/title.js` on focus changes. Overlapping runs are serialised per session. The plugin reports [custom sidebar tokens](https://herdr.dev/docs/configuration) (`$gap`, `$group`, `$gsort`, `$branch`, `$pr`, `$pr_state`, `$issues`, `$tab1…$tab14`), sets an agent view that sorts by `$gsort`,, and the **Configure** action writes a marked block into `config.toml` that lays those tokens out.
 
 ## Requirements
 
@@ -81,7 +88,7 @@ The available placeholders are `{session}`, `{agent}`, `{workspace}`, `{tab}` an
 | Action | What it does |
 |---|---|
 | `configure` | Install or repair the sidebar layout |
-| `unconfigure` | Remove the layout, clear tokens and the window title. Run this before uninstalling. |
+| `unconfigure` | Remove the layout, clear tokens, the agent order and the window title. Run this before uninstalling. |
 | `refresh` | Repaint now, bypassing the PR cache |
 
 ## Development

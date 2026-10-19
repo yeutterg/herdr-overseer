@@ -79,3 +79,33 @@ test('window title format', () => {
   assert.equal(windowTitle('{session} › {workspace}', { session: 'restful', workspace: 'site' }), 'restful › site');
   assert.equal(windowTitle('Herdr: {session} > {agent}', { session: 'restful', agent: 'Fix login race' }), 'Herdr: restful > Fix login race');
 });
+
+test('agents group by space with one header per space', () => {
+  const { agentGroupTokens } = require('../lib/tokens');
+  const snap = {
+    workspaces: [
+      { workspace_id: 'w1', number: 1, label: 'api' },
+      { workspace_id: 'w2', number: 2, label: 'web' },
+    ],
+    tabs: [
+      { tab_id: 'w1:t1', number: 1 },
+      { tab_id: 'w1:t2', number: 2 },
+      { tab_id: 'w2:t1', number: 1 },
+    ],
+    panes: [
+      { pane_id: 'w2:p1', workspace_id: 'w2', tab_id: 'w2:t1', agent: 'claude', agent_status: 'idle' },
+      { pane_id: 'w1:p1', workspace_id: 'w1', tab_id: 'w1:t1', agent: 'claude', agent_status: 'idle' },
+      { pane_id: 'w1:p2', workspace_id: 'w1', tab_id: 'w1:t2', agent: 'codex', agent_status: 'blocked' },
+      { pane_id: 'w1:p3', workspace_id: 'w1', tab_id: 'w1:t1' },
+    ],
+  };
+  const g = agentGroupTokens(snap);
+  const order = [...g.keys()].sort((a, b) => (g.get(a).gsort < g.get(b).gsort ? -1 : 1));
+  assert.deepEqual(order, ['w1:p2', 'w1:p1', 'w2:p1']); // blocked first within its space
+  assert.equal(g.get('w1:p2').group, 'api');
+  assert.equal(g.get('w1:p2').gap, null); // no spacer above the first group
+  assert.equal(g.get('w1:p1').group, '\u200b'); // blank first line keeps it indented
+  assert.equal(g.get('w2:p1').group, 'web');
+  assert.equal(g.get('w2:p1').gap, '​');
+  assert.equal(g.has('w1:p3'), false);
+});
