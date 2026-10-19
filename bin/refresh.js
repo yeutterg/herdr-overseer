@@ -13,7 +13,7 @@ const fs = require('node:fs');
 const { call, snapshot } = require('../lib/ipc');
 const { SOURCE, stateFile, readJson, writeJson, userConfig } = require('../lib/session');
 const { gitInfo, isTrunk, prForBranch, issueFromBranch, scanRefs } = require('../lib/github');
-const { paneTokens, workspaceTokens, agentGroupTokens } = require('../lib/tokens');
+const { paneTokens } = require('../lib/tokens');
 const { updateLive } = require('../lib/live');
 
 const AGENT_SORT = [{ field: { token: 'gsort' }, order: 'asc' }];
@@ -72,7 +72,6 @@ async function refresh(state, { repaint }) {
 
   const agentPanes = snap.panes.filter((p) => p.agent);
   const nest = userConfig().nest_agents !== false;
-  const groups = agentGroupTokens(snap, { nest });
   const liveKeys = new Set();
   const details = {};
 
@@ -102,17 +101,6 @@ async function refresh(state, { repaint }) {
       seen,
       branchIssue: info && !isTrunk(info) ? issueFromBranch(info.branch) : null,
     });
-    const tokens = groups.get(pane.pane_id);
-    await report(state, repaint, `pane:${pane.pane_id}`, tokens, () =>
-      call('pane.report_metadata', { pane_id: pane.pane_id, source: SOURCE, tokens }),
-    );
-  });
-
-  const wsJobs = snap.workspaces.map((ws) => {
-    const tokens = workspaceTokens(ws, snap.tabs, snap.panes);
-    return report(state, repaint, `ws:${ws.workspace_id}`, tokens, () =>
-      call('workspace.report_metadata', { workspace_id: ws.workspace_id, source: SOURCE, tokens }),
-    );
   });
 
   // Views are transient, so a restarted server needs the order set again.
@@ -125,20 +113,16 @@ async function refresh(state, { repaint }) {
       ? [call('agent.view.set', { source: SOURCE, label: 'priority', sort: AGENT_SORT })]
       : [call('agent.view.clear', { source: SOURCE })];
 
-  const results = await Promise.allSettled([...paneJobs, ...wsJobs, ...view]);
+  const results = await Promise.allSettled([...paneJobs, ...view]);
   for (const r of results) if (r.status === 'rejected') console.error(`herdr-glance: ${r.reason?.message ?? r.reason}`);
 
   writeJson(stateFile('details'), details);
   // A restarted server lost every token, so forget what live.js last sent.
   if (repaint) writeJson(stateFile('live'), {});
-  await updateLive(snap, { forceTitle: true });
+  // Fresh snapshot: the lookups above can take a second or two.
+  await updateLive(null, { forceTitle: true });
 
   for (const key of Object.keys(state.seen)) if (!liveKeys.has(key)) delete state.seen[key];
-  const liveIds = new Set([
-    ...agentPanes.map((p) => `pane:${p.pane_id}`),
-    ...snap.workspaces.map((w) => `ws:${w.workspace_id}`),
-  ]);
-  for (const id of Object.keys(state.reported)) if (!liveIds.has(id)) delete state.reported[id];
   for (const [key, entry] of Object.entries(state.prs)) if (now - entry.at > 24 * 3600_000) delete state.prs[key];
 }
 
@@ -154,14 +138,6 @@ function mergeSeen(prev, found) {
   return [...out.values()].slice(-SEEN_CAP);
 }
 
-// Skip identical reports: each one makes Herdr redraw the sidebar.
-async function report(state, repaint, id, tokens, send) {
-  const sig = JSON.stringify(tokens);
-  if (!repaint && state.reported[id] === sig) return;
-  await send();
-  state.reported[id] = sig;
-}
-
 async function main() {
   const lock = stateFile('lock').replace(/\.json$/, '.lock');
   const dirty = `${lock}.dirty`;
@@ -170,7 +146,8 @@ async function main() {
     return;
   }
   const file = stateFile('state');
-  const state = { prs: {}, seen: {}, reported: {}, ...readJson(file, {}) };
+  const state = { prs: {}, seen: {}, ...readJson(file, {}) };
+  delete state.reported; // from older versions
   try {
     let repaint = repaintAll;
     for (let pass = 0; pass < 3; pass++) {

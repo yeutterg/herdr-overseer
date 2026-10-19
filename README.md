@@ -27,7 +27,7 @@ restful
 
 Tabs with generic names like `1` or `claude` show the agent's name instead.
 
-Both levels are sorted by priority, like Herdr's own `priority` sort: needs you, then done, working and idle, most recent change first. A space ranks by its most urgent agent, so a space with someone waiting on you jumps to the top. Herdr can't group agents itself, so the plugin sets the panel order (the header reads **priority**). Set `nest_agents` to `false` (see Options) to get Herdr's flat list back, or run **unconfigure**.
+Both levels are sorted by priority, using the same ranking as Herdr's own `priority` sort: needs you, then done (not yet viewed), working, idle, most recent change first. A space ranks by its most urgent agent, so a space with someone waiting on you jumps to the top. Herdr can't group agents itself, so the plugin sets the panel order (the header reads **priority**). Set `nest_agents` to `false` (see Options) to get Herdr's flat list back, or run **unconfigure**.
 
 **Spaces panel**: each space lists its tabs underneath, with the same status icons:
 
@@ -53,8 +53,8 @@ References to the same repo show as `#N`, and references to another repo show as
 
 There's no daemon, and Herdr itself is not modified. The plugin reports [custom sidebar tokens](https://herdr.dev/docs/configuration), and **Configure** writes marked blocks into `config.toml` that lay them out.
 
-- `bin/refresh.js` runs on startup and on agent status, tab and pane events. It looks up branches, PRs and issues, and sets the space headers, status lines, tab lists and panel order. Overlapping runs are serialised per session.
-- `bin/live.js` runs on selection changes and every 3 seconds. It handles the activity lines, the selected agent's expansion and the window title. It's cheap: one snapshot and no git or `gh` calls.
+- `bin/refresh.js` runs on startup and on agent status, tab and pane events. It looks up branches, PRs and issues, and installs the panel order. Overlapping runs are serialised per session.
+- `bin/live.js` runs on selection changes and every 3 seconds. It handles everything that comes from Herdr's own state: the priority order, space headers, status icons, the Spaces tab list, activity lines, the selected agent's expansion and the window title. It's cheap: one snapshot, no git or `gh` calls, and only changed tokens are sent.
 
 The every-3-seconds part needs a workaround. Herdr has no timer for plugins, and it doesn't report terminal-title changes. It does re-run tab-bar status commands on an interval, so Configure installs one (`ui.tab_bar_right`) that prints nothing and runs `live.js`. If you already set `tab_bar_right` yourself, Configure leaves it alone, and activity then updates only on agent events and selection changes.
 

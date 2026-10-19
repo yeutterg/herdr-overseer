@@ -112,16 +112,17 @@ test('agents nest under spaces, both ordered by priority', () => {
   // web holds the blocked agent, so it leads; inside each space, most urgent first.
   assert.deepEqual(order, ['w2:p2', 'w2:p1', 'w1:p2', 'w1:p1']);
   assert.equal(g.get('w2:p2').group, 'web');
-  assert.equal(g.get('w2:p2').gap, null); // no spacer above the first group
+  assert.equal(g.get('w2:p2').tail, null);
+  assert.equal(g.get('w2:p1').tail, '\u200b'); // blank line after web's last agent
   assert.equal(g.get('w2:p1').group, null); // no blank line between agents of a space
   assert.equal(g.get('w2:p1').head, '\u200b  ○ claude'); // indents itself instead
   assert.equal(g.get('w2:p2').head, '● claude'); // under the header, Herdr indents it
   assert.equal(g.get('w1:p2').group, 'api');
-  assert.equal(g.get('w1:p2').gap, '\u200b');
+  assert.equal(g.get('w1:p1').tail, null); // nothing after the last space
   assert.equal(g.has('w1:p3'), false);
 
   const flat = agentGroupTokens(snap, { nest: false });
-  assert.deepEqual(flat.get('w1:p1'), { gsort: null, gap: null, group: null, head: '○ claude', space: 'api' });
+  assert.deepEqual(flat.get('w1:p1'), { gsort: null, tail: null, group: null, head: '○ claude', space: 'api' });
 });
 
 test('wrap breaks on words, splits long words, ellipsises overflow', () => {
@@ -143,4 +144,19 @@ test('only the selected agent gets wrapped activity and details', () => {
   assert.equal(on.desc3, 'lamp health');
   assert.equal(on.branch, '⎇ main');
   assert.equal(liveTokens(pane, { selected: false, details, width: 16, detailsMode: 'always' }).pr, 'PR #4');
+});
+
+test("ranking matches Herdr's tab_attention_priority, newest change first", () => {
+  const { agentGroupTokens } = require('../lib/tokens');
+  const statuses = ['idle', 'working', 'done', 'unknown', 'blocked', 'working'];
+  const snap = {
+    workspaces: [{ workspace_id: 'w1', number: 1, label: 'one' }],
+    tabs: statuses.map((_, i) => ({ tab_id: `w1:t${i}`, number: i + 1 })),
+    panes: statuses.map((s, i) => ({ pane_id: `p${i}`, workspace_id: 'w1', tab_id: `w1:t${i}`, agent: 'claude', agent_status: s })),
+    agents: statuses.map((_, i) => ({ pane_id: `p${i}`, state_change_seq: i === 5 ? 99 : i })),
+  };
+  const g = agentGroupTokens(snap);
+  const order = [...g.keys()].sort((a, b) => (g.get(a).gsort < g.get(b).gsort ? -1 : 1));
+  // blocked, done, working (seq 99 before seq 1), idle, unknown
+  assert.deepEqual(order, ['p4', 'p2', 'p5', 'p1', 'p0', 'p3']);
 });
