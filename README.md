@@ -33,7 +33,7 @@ A [Herdr](https://herdr.dev) plugin that makes the sidebar answer "what is each 
 
 Tabs with generic names show their pane's terminal title instead. Herdr gives each space one click target, so clicking a nested tab line focuses the space, not that tab.
 
-**Window title**: the outer terminal window is titled `Herdr: <session> > <agent>`, where `<agent>` is the focused tab as the sidebar names it (its own name, or the agent's activity when the name is generic). This helps tiling window managers and makes it easier to remember which session is which.
+**Window title**: the outer terminal window is titled `Herdr: <session>`. This helps tiling window managers and makes it easier to remember which session is which.
 
 ## Where PRs and issues come from
 
@@ -71,10 +71,10 @@ Colours follow your `[theme] name` (Tokyo Night and Catppuccin are included). Re
 `$(herdr plugin config-dir yeutterg.herdr-glance)/config.json`:
 
 ```json
-{ "window_title": "Herdr: {session} > {agent}" }
+{ "window_title": "Herdr: {session}" }
 ```
 
-The available placeholders are `{session}`, `{agent}`, `{workspace}`, `{tab}` and `{hostname}`. An empty string leaves the window title alone.
+The available placeholders are `{session}`, `{agent}`, `{workspace}`, `{tab}` and `{hostname}`. `{agent}` is the focused tab as the sidebar names it (its own name, or the agent's activity when the name is generic). An empty string leaves the window title alone.
 
 ## Actions
 
