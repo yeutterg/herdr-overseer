@@ -32,7 +32,7 @@ async function eachSession(fn) {
 
 async function clearTokens(sock) {
   const snap = await snapshot(sock);
-  const paneTokens = { gap: null, group: null, gsort: null, branch: null, pr: null, pr_state: null, issues: null };
+  const paneTokens = { gap: null, group: null, gsort: null, space: null, branch: null, pr: null, pr_state: null, issues: null };
   const wsTokens = Object.fromEntries(Array.from({ length: MAX_TABS }, (_, i) => [`tab${i + 1}`, null]));
   await Promise.allSettled([
     ...snap.panes.map((p) => call('pane.report_metadata', { pane_id: p.pane_id, source: SOURCE, tokens: paneTokens }, sock)),

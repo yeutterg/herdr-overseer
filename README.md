@@ -19,7 +19,7 @@ restful
 2. The agent's live activity: the terminal title it sets, which Herdr repaints on its own.
 3. Branch, PRs and issues.
 
-Spaces appear in sidebar order. Within a space, agents waiting on you come first, then working, done and idle. This replaces Herdr's own panel order: the panel header reads **by space**, and **unconfigure** gives the order back to Herdr.
+Both levels are sorted by priority, like Herdr's own `priority` sort: waiting on you, then done, working and idle, most recent change first. A space ranks by its most urgent agent, so a space with someone waiting on you jumps to the top. Herdr can't group agents itself, so the plugin sets the panel order (the header reads **priority**). Set `nest_agents` to `false` (see Options) to get Herdr's flat list back, or run **unconfigure**.
 
 **Spaces panel**: each space lists its tabs underneath, with a status glyph per tab:
 
@@ -78,10 +78,10 @@ Colours follow your `[theme] name` (Tokyo Night and Catppuccin are included). Re
 `$(herdr plugin config-dir yeutterg.herdr-glance)/config.json`:
 
 ```json
-{ "window_title": "Herdr: {session}" }
+{ "window_title": "Herdr: {session}", "nest_agents": true }
 ```
 
-The available placeholders are `{session}`, `{agent}`, `{workspace}`, `{tab}` and `{hostname}`. `{agent}` is the focused tab as the sidebar names it (its own name, or the agent's activity when the name is generic). An empty string leaves the window title alone.
+The available placeholders are `{session}`, `{agent}`, `{workspace}`, `{tab}` and `{hostname}`. `{agent}` is the focused tab as the sidebar names it (its own name, or the agent's activity when the name is generic). An empty string leaves the window title alone. Setting `nest_agents` to `false` turns off nesting and leaves the order to Herdr's `agent_panel_sort`; each agent then shows its space name on its first line.
 
 ## Actions
 

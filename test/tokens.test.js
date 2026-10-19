@@ -80,7 +80,7 @@ test('window title format', () => {
   assert.equal(windowTitle('Herdr: {session} > {agent}', { session: 'restful', agent: 'Fix login race' }), 'Herdr: restful > Fix login race');
 });
 
-test('agents group by space with one header per space', () => {
+test('agents nest under spaces, both ordered by priority', () => {
   const { agentGroupTokens } = require('../lib/tokens');
   const snap = {
     workspaces: [
@@ -91,21 +91,33 @@ test('agents group by space with one header per space', () => {
       { tab_id: 'w1:t1', number: 1 },
       { tab_id: 'w1:t2', number: 2 },
       { tab_id: 'w2:t1', number: 1 },
+      { tab_id: 'w2:t2', number: 2 },
     ],
     panes: [
-      { pane_id: 'w2:p1', workspace_id: 'w2', tab_id: 'w2:t1', agent: 'claude', agent_status: 'idle' },
       { pane_id: 'w1:p1', workspace_id: 'w1', tab_id: 'w1:t1', agent: 'claude', agent_status: 'idle' },
-      { pane_id: 'w1:p2', workspace_id: 'w1', tab_id: 'w1:t2', agent: 'codex', agent_status: 'blocked' },
+      { pane_id: 'w1:p2', workspace_id: 'w1', tab_id: 'w1:t2', agent: 'codex', agent_status: 'working' },
+      { pane_id: 'w2:p1', workspace_id: 'w2', tab_id: 'w2:t1', agent: 'claude', agent_status: 'idle' },
+      { pane_id: 'w2:p2', workspace_id: 'w2', tab_id: 'w2:t2', agent: 'claude', agent_status: 'blocked' },
       { pane_id: 'w1:p3', workspace_id: 'w1', tab_id: 'w1:t1' },
+    ],
+    agents: [
+      { pane_id: 'w1:p1', state_change_seq: 5 },
+      { pane_id: 'w1:p2', state_change_seq: 9 },
+      { pane_id: 'w2:p1', state_change_seq: 20 },
+      { pane_id: 'w2:p2', state_change_seq: 3 },
     ],
   };
   const g = agentGroupTokens(snap);
   const order = [...g.keys()].sort((a, b) => (g.get(a).gsort < g.get(b).gsort ? -1 : 1));
-  assert.deepEqual(order, ['w1:p2', 'w1:p1', 'w2:p1']); // blocked first within its space
+  // web holds the blocked agent, so it leads; inside each space, most urgent first.
+  assert.deepEqual(order, ['w2:p2', 'w2:p1', 'w1:p2', 'w1:p1']);
+  assert.equal(g.get('w2:p2').group, 'web');
+  assert.equal(g.get('w2:p2').gap, null); // no spacer above the first group
+  assert.equal(g.get('w2:p1').group, '​'); // blank first line keeps it indented
   assert.equal(g.get('w1:p2').group, 'api');
-  assert.equal(g.get('w1:p2').gap, null); // no spacer above the first group
-  assert.equal(g.get('w1:p1').group, '\u200b'); // blank first line keeps it indented
-  assert.equal(g.get('w2:p1').group, 'web');
-  assert.equal(g.get('w2:p1').gap, '​');
+  assert.equal(g.get('w1:p2').gap, '​');
   assert.equal(g.has('w1:p3'), false);
+
+  const flat = agentGroupTokens(snap, { nest: false });
+  assert.deepEqual(flat.get('w1:p1'), { gsort: null, gap: null, group: null, space: 'api' });
 });

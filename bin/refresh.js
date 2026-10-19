@@ -11,7 +11,7 @@
 const fs = require('node:fs');
 
 const { call, snapshot } = require('../lib/ipc');
-const { SOURCE, stateFile, readJson, writeJson } = require('../lib/session');
+const { SOURCE, stateFile, readJson, writeJson, userConfig } = require('../lib/session');
 const { gitInfo, isTrunk, prForBranch, issueFromBranch, scanRefs } = require('../lib/github');
 const { paneTokens, workspaceTokens, agentGroupTokens } = require('../lib/tokens');
 const { applyTitle } = require('../lib/title');
@@ -71,7 +71,8 @@ async function refresh(state, { repaint }) {
   };
 
   const agentPanes = snap.panes.filter((p) => p.agent);
-  const groups = agentGroupTokens(snap);
+  const nest = userConfig().nest_agents !== false;
+  const groups = agentGroupTokens(snap, { nest });
   const liveKeys = new Set();
 
   const paneJobs = agentPanes.map(async (pane) => {
@@ -114,7 +115,14 @@ async function refresh(state, { repaint }) {
   });
 
   // Views are transient, so a restarted server needs the order set again.
-  const view = repaint ? [call('agent.view.set', { source: SOURCE, label: 'by space', sort: AGENT_SORT })] : [];
+  // Turning nesting off hands the order back to Herdr's own agent_panel_sort.
+  const viewChanged = repaint || state.nest !== nest;
+  state.nest = nest;
+  const view = !viewChanged
+    ? []
+    : nest
+      ? [call('agent.view.set', { source: SOURCE, label: 'priority', sort: AGENT_SORT })]
+      : [call('agent.view.clear', { source: SOURCE })];
 
   const results = await Promise.allSettled([...paneJobs, ...wsJobs, ...view, applyTitle(snap)]);
   for (const r of results) if (r.status === 'rejected') console.error(`herdr-glance: ${r.reason?.message ?? r.reason}`);
