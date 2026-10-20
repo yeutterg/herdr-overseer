@@ -138,7 +138,8 @@ async function loadPreview() {
     return;
   }
   try {
-    const read = await call('pane.read', { pane_id: ui.selected, source: 'recent', lines: 40 });
+    // Visible screen only, so the agent's view is never scrolled (see bin/refresh.js).
+    const read = await call('pane.read', { pane_id: ui.selected, source: 'visible' });
     ui.preview = (read.read?.text ?? '')
       .split('\n')
       .map((l) => l.replace(/\s+$/, ''))

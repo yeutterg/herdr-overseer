@@ -25,7 +25,6 @@ const PR_TTL_MS = 60_000;
 const META_TTL_MS = 10 * 60_000;
 const META_DONE_TTL_MS = 24 * 3600_000; // merged or closed rarely changes
 const LOCK_STALE_MS = 60_000;
-const SCAN_LINES = 400;
 const SEEN_CAP = 8;
 const TOUCHED_CAP = 8;
 const TREE_TTL_MS = 30_000;
@@ -98,7 +97,11 @@ async function refresh(state, { repaint }) {
 
     let text = '';
     try {
-      const read = await call('pane.read', { pane_id: pane.pane_id, source: 'recent', lines: SCAN_LINES });
+      // Only the visible screen: a longer read of an idle full-screen agent
+      // (Claude Code, OpenCode) makes Herdr scroll its transcript up and back
+      // to collect history, which you see as the pane jumping. Refs and
+      // touched repos accumulate across refreshes instead.
+      const read = await call('pane.read', { pane_id: pane.pane_id, source: 'visible' });
       text = read.read?.text ?? '';
     } catch {
       // Unreadable pane: keep what was seen before.
