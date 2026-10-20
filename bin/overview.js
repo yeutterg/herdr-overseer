@@ -16,6 +16,8 @@
 //
 // Keys: ↑/↓ or j/k select · enter go to the agent · n add a note ·
 // x delete the agent's latest note · tab switch view · q quit (closes the tab).
+// In the note prompt: ←/→, option+←/→ by word, option+backspace deletes a
+// word, ctrl+a/e start/end, ctrl+u/k delete to start/end, esc cancels.
 
 const { call, snapshot } = require('../lib/ipc');
 const { SOURCE, stateFile, readJson, configDir } = require('../lib/session');
@@ -24,6 +26,7 @@ const { wrap } = require('../lib/live');
 const { notesFor, addNote, removeNote, readNotes } = require('../lib/notes');
 const { palette } = require('../lib/layout');
 const { buildGitModel, renderGitView } = require('../lib/gitview');
+const { edit } = require('../lib/lineedit');
 
 const POLL_MS = 2000;
 const PREVIEW_LINES = 6;
@@ -83,6 +86,7 @@ const ui = {
   mode: 'list', // list | note | confirm-delete
   gitOrder: [], // pane ids in git-view order, for moving the selection there
   input: '',
+  cursor: 0, // in code points
   message: '',
   offset: 0,
   error: '',
@@ -242,8 +246,14 @@ function paintSegs(segs, width) {
 function footer(width) {
   if (ui.mode === 'note') {
     const prompt = ' note › ';
-    const shown = [...ui.input].slice(-(width - len(prompt) - 2)).join('');
-    return [paint('─'.repeat(width), rgb(C.muted)), paint(prompt, BOLD, rgb(C.working)) + shown + paint('█', rgb(C.text))];
+    // Scroll so the cursor stays in view; it is drawn as an inverted cell.
+    const chars = [...ui.input, ' '];
+    const room = Math.max(1, width - len(prompt) - 1);
+    const start = Math.max(0, ui.cursor - room + 1);
+    const shown = chars.slice(start, start + room);
+    const at = ui.cursor - start;
+    const field = shown.slice(0, at).join('') + paint(shown[at], `${ESC}7m`) + shown.slice(at + 1).join('');
+    return [paint('─'.repeat(width), rgb(C.muted)), paint(prompt, BOLD, rgb(C.working)) + field];
   }
   if (ui.mode === 'confirm-delete') {
     return [paint('─'.repeat(width), rgb(C.muted)), paint(' delete the latest note? y / n', BOLD, rgb(C.blocked))];
@@ -340,10 +350,12 @@ function onKey(data) {
       if (pane && text) addNote(pane, text);
       ui.mode = 'list';
       ui.input = '';
+      ui.cursor = 0;
       if (text) ui.message = 'note saved';
-    } else if (s === '\x7f' || s === '\b') ui.input = [...ui.input].slice(0, -1).join('');
-    else if (s === '\x15') ui.input = ''; // ctrl+u
-    else if (!s.startsWith('\x1b')) ui.input += s.replace(/[\r\n]+/g, ' ').replace(/[\x00-\x1f]/g, '');
+    } else {
+      const next = edit({ text: ui.input, cursor: ui.cursor }, s);
+      if (next) ({ text: ui.input, cursor: ui.cursor } = next);
+    }
     return render();
   }
   if (ui.mode === 'confirm-delete') {
@@ -367,6 +379,7 @@ function onKey(data) {
   } else if (s === 'n' && selectedPane()) {
     ui.mode = 'note';
     ui.input = '';
+    ui.cursor = 0;
   } else if (s === 'x' && selectedPane()) {
     if (notesFor(selectedPane()).length) ui.mode = 'confirm-delete';
     else ui.message = 'no notes on this agent';

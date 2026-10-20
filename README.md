@@ -98,7 +98,7 @@ Open overview tabs restart themselves when the plugin's code changes, so updates
 
 In the sidebar's agents panel, a space's name is its overview tab's own row: click the space name to open its overview, or an agent under it to jump to that agent's tab. To get that row, the overview registers itself with Herdr as an agent named `overview`. Tools that list agents, such as Heeler, show it too. In the spaces panel its tab is marked `≡`.
 
-Notes are scratch notes for the job in hand: they belong to the agent's pane and are deleted when that pane or its tab closes. An agent with notes gets a `✎` in the sidebar.
+Notes are scratch notes for the job in hand: they belong to the agent's pane and are deleted when that pane or its tab closes. An agent with notes gets a `✎` in the sidebar. While typing a note, option+←/→ moves by word and option+backspace deletes a word; ctrl+a/e jump to the start/end and ctrl+u/k delete to them.
 
 A new overview tab opens as the first tab in its space; move it anywhere and it stays put. To open one, run **Overview: open for this space** (`yeutterg.herdr-overseer.overview`). To add one to every space, run **Overview: open in every space** (`overview-all`). Either way, a space that already has an overview tab just gets it focused. You can bind a key to an action in Herdr's `config.toml`:
 
